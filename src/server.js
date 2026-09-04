@@ -235,6 +235,7 @@ const CATALOG = [
   { id: 'deepseek', label: 'DeepSeek', baseURL: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat', keyURL: 'https://platform.deepseek.com/api_keys', envKey: 'DEEPSEEK_API_KEY', models: ['deepseek-chat', 'deepseek-reasoner'] },
   { id: 'groq', label: 'Groq (fast)', baseURL: 'https://api.groq.com/openai/v1', defaultModel: 'llama-3.3-70b-versatile', keyURL: 'https://console.groq.com/keys', envKey: 'GROQ_API_KEY', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'] },
   { id: 'openrouter', label: 'OpenRouter (all models)', baseURL: 'https://openrouter.ai/api/v1', defaultModel: 'openrouter/auto', keyURL: 'https://openrouter.ai/keys', envKey: 'OPENROUTER_API_KEY', models: ['openrouter/auto'] },
+  { id: 'omniroute', label: 'OmniRoute (free gateway — auto routing)', baseURL: 'http://localhost:20128/v1', defaultModel: 'auto', keyURL: 'https://github.com/diegosouzapw/OmniRoute', envKey: 'OMNIROUTE_TOKEN', local: true, note: 'Self-hosted gateway: 150+ free providers, model "auto" switches automatically. Change Base URL to your public tunnel before enabling.', models: ['auto', 'auto/cheap'] },
   { id: 'anthropic', label: 'Anthropic (Claude)', baseURL: 'https://api.anthropic.com', defaultModel: 'claude-sonnet-4-5', keyURL: 'https://console.anthropic.com/settings/keys', envKey: 'ANTHROPIC_API_KEY', native: true, models: ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-haiku-4-5'] },
   { id: 'ollama', label: 'Ollama (local, free)', baseURL: 'http://localhost:11434/v1', defaultModel: 'llama3.2', keyURL: 'https://ollama.com', local: true, models: ['llama3.2', 'llama3.3', 'qwen2.5', 'mistral', 'phi4'] },
   { id: 'together', label: 'Together AI', baseURL: 'https://api.together.xyz/v1', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', keyURL: 'https://api.together.xyz/settings/api-keys', envKey: 'TOGETHER_API_KEY', models: ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'meta-llama/Llama-3.1-8B-Instruct-Turbo', 'deepseek-ai/DeepSeek-V3', 'Qwen/Qwen2.5-72B-Instruct-Turbo'] },
@@ -537,7 +538,7 @@ function resolveChatProvider(requestedId) {
 }
 
 /* Auto mode: try providers in priority order, fall back automatically. */
-const AUTO_PRIORITY = ['openrouter', 'openai', 'deepseek', 'groq', 'gemini', 'anthropic', 'custom', 'ollama'];
+const AUTO_PRIORITY = ['omniroute', 'openrouter', 'openai', 'deepseek', 'groq', 'gemini', 'anthropic', 'custom', 'ollama'];
 function autoCandidates() {
   const list = [];
   for (const id of AUTO_PRIORITY) {
