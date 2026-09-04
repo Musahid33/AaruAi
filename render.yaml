@@ -1,8 +1,10 @@
-# Render Blueprint — one-click deploy of Aaru AI with PostgreSQL.
+# Render Blueprint — one-click deploy of Aaru AI with Firebase Realtime Database.
 # In Render: "New +" → Blueprint → select your Musahid33/AaruAi repo → Apply.
-# Free tier notes: the web service sleeps after ~15 min idle (first load after
-# sleep takes ~50s to wake); the free PostgreSQL instance expires after 30 days
-# (upgrade or export your data before then).
+# Then in the dashboard open the service → Environment → set the secret
+#   FIREBASE_SERVICE_ACCOUNT = base64 of your serviceAccountKey.json
+# (value is in AARUAI-FIREBASE-SETUP.txt) and hit "Manual Deploy".
+# Free tier note: the web service sleeps after ~15 min idle (first load after
+# sleep takes ~50s to wake); data stays safe in Firebase either way.
 services:
   - type: web
     name: aaru-ai
@@ -11,15 +13,9 @@ services:
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: aaru-ai-db
-          property: connectionString
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false        # secret — set it in the dashboard, never in git
       - key: COOKIE_SECURE
         value: "1"
       - key: PORT
         value: "3000"
-
-databases:
-  - name: aaru-ai-db
-    plan: free

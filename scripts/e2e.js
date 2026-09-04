@@ -53,7 +53,7 @@ async function readSSE(resp, onEvent, onDone) {
   let r = await fetch(BASE + '/api/health');
   ok('health endpoint public', r.ok);
   const h0 = await r.json().catch(() => ({}));
-  ok('health reports storage db mode', h0.db === 'files' || h0.db === 'postgres', JSON.stringify(h0));
+  ok('health reports storage db mode', ['files','postgres','firebase','rtdb'].includes(h0.db), JSON.stringify(h0));
   r = await fetch(BASE + '/api/state');
   ok('state requires auth (401)', r.status === 401);
   r = await fetch(BASE + '/api/auth/status');

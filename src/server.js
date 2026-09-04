@@ -27,15 +27,16 @@ const FILES = {
   sessions: path.join(DATA_DIR, 'sessions.json'),
 };
 
-/* ================= optional storage: PostgreSQL / Firebase Firestore =================
-   Set DATABASE_URL (PostgreSQL) or Firebase credentials (Firestore) to persist
-   everything there instead of the JSON files above. Without either, Aaru AI works
-   exactly as before (zero-config JSON files). */
+/* ================= optional storage: PostgreSQL / Firebase =================
+   Set DATABASE_URL (PostgreSQL) or Firebase credentials to persist everything
+   there instead of the JSON files above. Without either, Aaru AI works exactly
+   as before (zero-config JSON files). */
 const DATABASE_URL = process.env.DATABASE_URL || '';
-let dbMode = 'files';           // 'files' | 'postgres' | 'firebase'
+let dbMode = 'files';           // 'files' | 'postgres' | 'firebase' (Firestore) | 'rtdb' (Realtime DB)
 let pgPool = null;
 let pgQueue = Promise.resolve(); // serialized writes to keep order
-let fbDb = null;
+let fbDb = null;                // Firestore handle
+let fbRtdb = null;              // Realtime Database handle
 let fbQueue = Promise.resolve();
 let fbChatIds = new Set();
 
@@ -60,7 +61,7 @@ function fbAdminConfig() {
   return { project_id: process.env.FIREBASE_PROJECT_ID, client_email: process.env.FIREBASE_CLIENT_EMAIL, private_key: key };
 }
 
-async function loadFirebase() {
+async function loadFirestore() {
   const admin = require('firebase-admin'); // optional dependency
   if (!admin.apps.length) admin.initializeApp({ credential: admin.credential.cert(fbAdminConfig()) });
   fbDb = admin.firestore();
@@ -80,6 +81,53 @@ async function loadFirebase() {
   console.log('[db] connected to Firebase Firestore ( ' + kv.size + ' kv docs, ' + loaded.length + ' chats )');
 }
 
+/* Realtime Database: URL candidates for auto-detection (project_id – default-rtdb). */
+function rtdbCandidates(projectId, explicit) {
+  const list = [];
+  if (explicit) list.push(explicit);
+  list.push(
+    `https://${projectId}-default-rtdb.firebaseio.com`,
+    `https://${projectId}-default-rtdb.asia-southeast1.firebasedatabase.app`,
+    `https://${projectId}-default-rtdb.us-central1.firebasedatabase.app`,
+    `https://${projectId}-default-rtdb.europe-west1.firebasedatabase.app`
+  );
+  return list.filter((v, i) => v && list.indexOf(v) === i);
+}
+async function loadRealtimeDb() {
+  const admin = require('firebase-admin');
+  const { project_id: pid } = fbAdminConfig();
+  const candidates = rtdbCandidates(pid, process.env.FIREBASE_DATABASE_URL);
+  let lastErr = null;
+  for (const url of candidates) {
+    try {
+      const app = (admin.apps.find((a) => a.name === 'aaru-rtdb')) || admin.initializeApp({ credential: admin.credential.cert(fbAdminConfig()), databaseURL: url }, 'aaru-rtdb');
+      const db = app.database();
+      // probe: small write+read+remove to confirm the DB exists & is writable
+      await db.ref('__aaru_probe').set({ ok: true, t: Date.now() });
+      await db.ref('__aaru_probe').once('value');
+      await db.ref('__aaru_probe').remove();
+      fbRtdb = db;
+      const kv = await db.ref('aaru_kv').once('value');
+      const kvv = kv.val() || {};
+      for (const k of Object.keys(kvv)) applyState(k, kvv[k]);
+      const cs = await db.ref('aaru_chats').once('value');
+      const cv = cs.val() || {};
+      const loaded = Object.entries(cv).map(([id, d]) => ({ id, ...d }));
+      if (loaded.length) chats = { chats: loaded };
+      fbChatIds = new Set(loaded.map((c) => c.id));
+      dbMode = 'rtdb';
+      console.log('[db] connected to Firebase Realtime Database ( ' + url + ' — ' + Object.keys(kvv).length + ' kv keys, ' + loaded.length + ' chats )');
+      return true;
+    } catch (e) {
+      lastErr = e;
+      console.error('[db] Realtime DB not reachable at ' + url + ' → ' + (e.code || e.message || '').slice(0, 120));
+      try { (admin.apps.find((a) => a.name === 'aaru-rtdb'))?.delete(); } catch {}
+      fbRtdb = null;
+    }
+  }
+  throw lastErr || new Error('Realtime Database not reachable');
+}
+
 async function persistChatsFirebase(chatsObj) {
   const list = chatsObj.chats || [];
   const col = fbDb.collection('aaru_chats');
@@ -93,6 +141,19 @@ async function persistChatsFirebase(chatsObj) {
   }
   fbChatIds = seen;
   return fbDb.collection('aaru_kv').doc('chatsIndex').set({ ids: [...seen], updated_at: new Date() });
+}
+async function persistChatsRealtime(chatsObj) {
+  const list = chatsObj.chats || [];
+  const seen = new Set();
+  await Promise.all(list.map((c) => {
+    seen.add(c.id);
+    return fbRtdb.ref('aaru_chats/' + c.id).set({ title: c.title || '', createdAt: c.createdAt || 0, updatedAt: c.updatedAt || 0, messages: c.messages || [] });
+  }));
+  const curSnap = await fbRtdb.ref('aaru_chats').once('value');
+  const cur = curSnap.val() || {};
+  const removed = Object.keys(cur).filter((id) => !seen.has(id));
+  if (removed.length) await Promise.all(removed.map((id) => fbRtdb.ref('aaru_chats/' + id).remove()));
+  fbChatIds = seen;
 }
 
 function persistKV(key, obj) {
@@ -109,6 +170,11 @@ function persistKV(key, obj) {
     fbQueue = fbQueue
       .then(() => (key === 'chats' ? persistChatsFirebase(clone) : fbDb.collection('aaru_kv').doc(key).set({ value: clone, updated_at: new Date() })))
       .catch((e) => console.error('[db] firebase write failed:', e.message));
+  } else if (dbMode === 'rtdb' && fbRtdb) {
+    const clone = JSON.parse(JSON.stringify(obj));
+    fbQueue = fbQueue
+      .then(() => (key === 'chats' ? persistChatsRealtime(clone) : fbRtdb.ref('aaru_kv/' + key).set(clone)))
+      .catch((e) => console.error('[db] realtime-db write failed:', e.message));
   }
 }
 function applyState(key, value) {
@@ -122,8 +188,14 @@ function applyState(key, value) {
 }
 async function initStorage() {
   if (fbAdminConfig()) {
-    try { await loadFirebase(); return; }
-    catch (e) { console.error('[db] Firebase unavailable, falling back:', e.message); }
+    let admin = null;
+    try { admin = require('firebase-admin'); } catch (e) { console.error('[db] firebase-admin not installed — skipping Firebase:', e.message); }
+    if (admin) {
+      try { await loadFirestore(); return; }
+      catch (e) { console.error('[db] Firestore unavailable (' + (e.code || e.message || '') + ') — trying Realtime Database…'); }
+      try { await loadRealtimeDb(); return; }
+      catch (e) { console.error('[db] Realtime Database unavailable too — falling back:', e.message); }
+    }
   }
   if (DATABASE_URL) {
     try {

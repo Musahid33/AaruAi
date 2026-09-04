@@ -142,19 +142,11 @@ npm i -D terser
 npm run build      # src/server.js → server.min.js, src/app.js → public/app.min.js
 ```
 
-## 🔥 Firebase Firestore (optional — alternative to PostgreSQL)
+## 🔥 Firebase (persistent database — recommended)
 
-Aaru AI can persist everything in **Firebase Firestore** (accounts, sessions, chats,
-usage, settings, API keys). This is the Node.js equivalent of the Firebase Admin setup:
-
-```js
-// How Aaru AI initializes Firebase internally (src/server.js)
-const admin = require('firebase-admin');
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-const db = admin.firestore();          // collections: aaru_kv (config/users/sessions/usage), aaru_chats (1 doc per chat)
-```
-
-Set ONE of these env vars (any one is enough):
+Aaru AI persists **everything** (accounts, sessions, chats, usage, settings, API keys)
+in **Firebase** when credentials are configured. It auto-detects which database your
+project has: **Firestore** first, then **Realtime Database** — whichever exists is used.
 
 | Env var | Value |
 |---|---|
@@ -162,23 +154,27 @@ Set ONE of these env vars (any one is enough):
 | `FIREBASE_CREDENTIALS` | the raw JSON of `serviceAccountKey.json` |
 | `GOOGLE_APPLICATION_CREDENTIALS` | path to `serviceAccountKey.json` on disk |
 | `FIREBASE_PROJECT_ID` + `FIREBASE_CLIENT_EMAIL` + `FIREBASE_PRIVATE_KEY` | split-key form |
+| `FIREBASE_DATABASE_URL` | optional — RTDB URL override (defaults are auto-probed) |
 
-### How to get the service account key
-1. [console.firebase.google.com](https://console.firebase.google.com) → create a project
-2. **Build → Firestore Database → Create database** (production mode is fine — the app uses
-   the Admin SDK, which bypasses client rules)
+### Setup (Realtime Database)
+1. [console.firebase.google.com](https://console.firebase.google.com) → open/create a project
+2. **Build → Realtime Database → Create database** (choose a region; the app probes the
+   default URL and common regions automatically)
 3. **Project settings (⚙) → Service accounts → Generate new private key** →
    downloads `serviceAccountKey.json`
-4. Encode it and set the env var:
+4. Encode and set the env var:
    ```bash
    base64 -w0 serviceAccountKey.json     # copy the output
    # Render: Environment → add FIREBASE_SERVICE_ACCOUNT = that base64 string
    ```
-5. Restart Aaru AI → logs show `[db] connected to Firebase Firestore` and Settings →
-   Workspace shows "Firebase Firestore".
+5. Restart Aaru AI → log shows `[db] connected to Firebase Realtime Database` and
+   Settings → Workspace shows "Firebase Realtime DB".
 
-> 🔐 Firestore can contain API keys & password hashes — restrict access: Firestore Rules
-> `allow read, write: if false;` (the Admin SDK ignores rules; only direct client access
-> is blocked), and never commit `serviceAccountKey.json` to git.
+> 🔐 The database can contain API keys & password hashes — restrict direct access:
+> Realtime Database **Rules** → `{ "rules": { ".read": false, ".write": false } }`
+> (the Admin SDK bypasses rules; only browser clients are blocked). Never commit
+> `serviceAccountKey.json` to git.
+
+Priority: Firebase (Firestore → Realtime DB, if configured) → PostgreSQL (if `DATABASE_URL` set) → JSON files.
 
 Priority: Firebase (if configured) → PostgreSQL (if `DATABASE_URL` set) → JSON files.
