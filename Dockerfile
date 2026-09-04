@@ -19,6 +19,7 @@ COPY --from=build /build/server.min.js ./
 COPY --from=build /build/public ./public
 COPY --from=build /build/node_modules ./node_modules
 COPY package.json ./
+RUN mkdir -p /app/data/generated && chown -R node:node /app
 VOLUME ["/app/data"]
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
