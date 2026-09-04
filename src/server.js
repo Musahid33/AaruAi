@@ -234,7 +234,8 @@ const CATALOG = [
   { id: 'gemini', label: 'Google Gemini', baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai', defaultModel: 'gemini-2.5-flash', keyURL: 'https://aistudio.google.com/apikey', envKey: 'GEMINI_API_KEY', models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash'] },
   { id: 'deepseek', label: 'DeepSeek', baseURL: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat', keyURL: 'https://platform.deepseek.com/api_keys', envKey: 'DEEPSEEK_API_KEY', models: ['deepseek-chat', 'deepseek-reasoner'] },
   { id: 'groq', label: 'Groq (fast)', baseURL: 'https://api.groq.com/openai/v1', defaultModel: 'llama-3.3-70b-versatile', keyURL: 'https://console.groq.com/keys', envKey: 'GROQ_API_KEY', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'] },
-  { id: 'openrouter', label: 'OpenRouter (all models)', baseURL: 'https://openrouter.ai/api/v1', defaultModel: 'openrouter/auto', keyURL: 'https://openrouter.ai/keys', envKey: 'OPENROUTER_API_KEY', models: ['openrouter/auto'] },
+  { id: 'openrouter', label: 'OpenRouter (all models)', baseURL: 'https://openrouter.ai/api/v1', defaultModel: 'openrouter/auto', keyURL: 'https://openrouter.ai/keys', envKey: 'OPENROUTER_API_KEY', models: ['openrouter/auto', 'deepseek/deepseek-chat-v3-0324:free', 'meta-llama/llama-3.3-70b-instruct:free', 'google/gemini-2.0-flash-exp:free', 'qwen/qwen-2.5-72b-instruct:free', 'mistralai/mistral-small-3.1-24b-instruct:free'] },
+  { id: 'pollinations', label: 'Pollinations (FREE — no key)', baseURL: 'https://text.pollinations.ai/v1', defaultModel: 'openai', keyURL: '', envKey: '', local: true, note: 'Free unlimited AI — anonymous, no API key. Light rate limits; auto-fallback covers it.', models: ['openai', 'openai-large'] },
   { id: 'omniroute', label: 'OmniRoute (free gateway — auto routing)', baseURL: 'http://localhost:20128/v1', defaultModel: 'auto', keyURL: 'https://github.com/diegosouzapw/OmniRoute', envKey: 'OMNIROUTE_TOKEN', local: true, note: 'Self-hosted gateway: 150+ free providers, model "auto" switches automatically. Change Base URL to your public tunnel before enabling.', models: ['auto', 'auto/cheap'] },
   { id: 'anthropic', label: 'Anthropic (Claude)', baseURL: 'https://api.anthropic.com', defaultModel: 'claude-sonnet-4-5', keyURL: 'https://console.anthropic.com/settings/keys', envKey: 'ANTHROPIC_API_KEY', native: true, models: ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-haiku-4-5'] },
   { id: 'ollama', label: 'Ollama (local, free)', baseURL: 'http://localhost:11434/v1', defaultModel: 'llama3.2', keyURL: 'https://ollama.com', local: true, models: ['llama3.2', 'llama3.3', 'qwen2.5', 'mistral', 'phi4'] },
@@ -538,7 +539,7 @@ function resolveChatProvider(requestedId) {
 }
 
 /* Auto mode: try providers in priority order, fall back automatically. */
-const AUTO_PRIORITY = ['omniroute', 'openrouter', 'openai', 'deepseek', 'groq', 'gemini', 'anthropic', 'custom', 'ollama'];
+const AUTO_PRIORITY = ['openrouter', 'pollinations', 'openai', 'deepseek', 'groq', 'gemini', 'anthropic', 'custom', 'ollama'];
 function isLocalURL(u) { return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(String(u || '')); }
 function autoCandidates() {
   const list = [];
@@ -636,7 +637,8 @@ async function streamOpenAICompat(prov, model, system, msgs, cb) {
   };
   if (config.maxTokens && !prov.local) basePayload.max_tokens = config.maxTokens;
   const headers = { 'Content-Type': 'application/json' };
-  headers["Authorization"] = "Bearer " + providerKey(prov.id);
+  const pk = providerKey(prov.id);
+  if (pk) headers["Authorization"] = "Bearer " + pk;
   let payload = { ...basePayload };
   if (!prov.local) payload.stream_options = { include_usage: true };
   let r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload), signal: cb.signal });
@@ -652,6 +654,7 @@ async function streamOpenAICompat(prov, model, system, msgs, cb) {
     if (ch && ch.delta) {
       if (ch.delta.content) cb.onDelta(ch.delta.content);
       if (ch.delta.reasoning_content) cb.onReasoning(ch.delta.reasoning_content);
+      if (ch.delta.reasoning) cb.onReasoning(ch.delta.reasoning);
     }
     if (j.usage) cb.onUsage(j.usage.prompt_tokens || 0, j.usage.completion_tokens || 0);
   });
@@ -914,19 +917,25 @@ async function handleChat(req, res) {
     if (!model) { lastErr = new ApiError(400, 'No model selected for ' + prov.label + '. Choose one in Settings → ' + prov.label + ' → Model.', prov); continue; }
     if (!jsonMode) sse(res, 'meta', { chatId: chat.id, provider: prov.id, model, profile: profileName ? { id: profileId, name: profileName } : null, auto: provs.length > 1 });
     const t0 = acc.text.length, r0 = acc.reasoning.length, u0 = { prompt: acc.prompt, completion: acc.completion };
-    const sig = (typeof AbortSignal.any === 'function') ? AbortSignal.any([ctrl.signal, AbortSignal.timeout(90000)]) : ctrl.signal;
-    try {
-      if (prov.native) await streamAnthropic(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: sig });
-      else await streamOpenAICompat(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: sig });
-      acc.finished = true;
-      usedProv = prov; usedModel = model;
-      break;
-    } catch (e) {
-      acc.text = acc.text.slice(0, t0); acc.reasoning = acc.reasoning.slice(0, r0);
-      acc.prompt = u0.prompt; acc.completion = u0.completion;
-      lastErr = e;
-      if (ctrl.signal.aborted) break;
+    const attemptMs = prov.local ? 35000 : 90000; // keyless/free gateways: fail fast
+    const sig = (typeof AbortSignal.any === 'function') ? AbortSignal.any([ctrl.signal, AbortSignal.timeout(attemptMs)]) : ctrl.signal;
+    for (let attempt = 0; attempt < (prov.local ? 2 : 1); attempt++) {
+      try {
+        await (prov.native
+          ? streamAnthropic(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: sig })
+          : streamOpenAICompat(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: sig }));
+        acc.finished = true;
+        usedProv = prov; usedModel = model;
+        break;
+      } catch (e) {
+        acc.text = acc.text.slice(0, t0); acc.reasoning = acc.reasoning.slice(0, r0);
+        acc.prompt = u0.prompt; acc.completion = u0.completion;
+        lastErr = e;
+        if (ctrl.signal.aborted) break;
+        if (attempt === 0 && prov.local) await new Promise((r) => setTimeout(r, 1500));
+      }
     }
+    if (acc.finished) break;
   }
   if (!acc.finished && lastErr && !ctrl.signal.aborted) {
     const msg = friendlyError(lastErr, lastErr.prov);
