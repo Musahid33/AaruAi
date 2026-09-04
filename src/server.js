@@ -835,8 +835,7 @@ async function handleChat(req, res) {
     sse(res, 'done', {});
     return res.end();
   };
-  if (jsonMode) res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  else res.writeHead(200, {
+  if (!jsonMode) res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
