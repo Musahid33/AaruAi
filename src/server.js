@@ -824,16 +824,25 @@ async function handlePatchChat(req, res, id) {
 
 /* ------------------------- API: chat (SSE stream) ------------------------- */
 async function handleChat(req, res) {
-  res.writeHead(200, {
+  let body;
+  try { body = JSON.parse((await readBody(req)) || '{}'); }
+  catch { return sendJson(res, { ok: false, error: 'Invalid request body' }, 400); }
+  const jsonMode = body.json === true;
+  let jErr = null;
+  const fail = (msg) => {
+    if (jsonMode) return sendJson(res, { ok: false, error: msg, chatId: null }, 400);
+    sse(res, 'error', { message: msg });
+    sse(res, 'done', {});
+    return res.end();
+  };
+  if (jsonMode) res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  else res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
     'X-Accel-Buffering': 'no',
     'Access-Control-Allow-Origin': '*',
   });
-  let body;
-  try { body = JSON.parse((await readBody(req)) || '{}'); }
-  catch { sse(res, 'error', { message: 'Invalid request body' }); sse(res, 'done', {}); return res.end(); }
 
   let profileName = null;
   const profileId = body.modelProfile ? String(body.modelProfile) : '';
@@ -859,9 +868,7 @@ async function handleChat(req, res) {
       }
     }
   } catch (e) {
-    sse(res, 'error', { message: friendlyError(e, e.prov) });
-    sse(res, 'done', {});
-    return res.end();
+    return fail(friendlyError(e, e.prov));
   }
 
   let system = (typeof body.system === 'string' && body.system.trim()) || config.systemPrompt || DEFAULT_CONFIG.systemPrompt;
@@ -890,14 +897,15 @@ async function handleChat(req, res) {
   saveChats();
   // messages actually sent upstream: previous history + the new user message (if any)
   const sendMsgs = (commitUser && userParts.length) ? [...history, { role: 'user', parts: userParts }] : history;
+
   const acc = { text: '', reasoning: '', prompt: 0, completion: 0, finished: false };
   const ctrl = new AbortController();
   req.on('close', () => ctrl.abort());
-  const onDelta = (t) => { acc.text += t; sse(res, 'delta', { text: t }); };
-  const onReasoning = (t) => { acc.reasoning += t; sse(res, 'reasoning', { text: t }); };
+  const onDelta = (t) => { acc.text += t; if (!jsonMode) sse(res, 'delta', { text: t }); };
+  const onReasoning = (t) => { acc.reasoning += t; if (!jsonMode) sse(res, 'reasoning', { text: t }); };
   const onUsage = (p, c) => {
     acc.prompt += p || 0; acc.completion += c || 0;
-    sse(res, 'usage', { prompt: acc.prompt, completion: acc.completion });
+    if (!jsonMode) sse(res, 'usage', { prompt: acc.prompt, completion: acc.completion });
   };
 
   // Auto mode: try each candidate provider until one answers (LMArena-style fallback)
@@ -905,7 +913,7 @@ async function handleChat(req, res) {
   for (const prov of provs) {
     const model = (body.model && String(body.model).trim()) || prov.model || '';
     if (!model) { lastErr = new ApiError(400, 'No model selected for ' + prov.label + '. Choose one in Settings → ' + prov.label + ' → Model.', prov); continue; }
-    sse(res, 'meta', { chatId: chat.id, provider: prov.id, model, profile: profileName ? { id: profileId, name: profileName } : null, auto: provs.length > 1 });
+    if (!jsonMode) sse(res, 'meta', { chatId: chat.id, provider: prov.id, model, profile: profileName ? { id: profileId, name: profileName } : null, auto: provs.length > 1 });
     const t0 = acc.text.length, r0 = acc.reasoning.length, u0 = { prompt: acc.prompt, completion: acc.completion };
     const sig = (typeof AbortSignal.any === 'function') ? AbortSignal.any([ctrl.signal, AbortSignal.timeout(90000)]) : ctrl.signal;
     try {
@@ -922,7 +930,9 @@ async function handleChat(req, res) {
     }
   }
   if (!acc.finished && lastErr && !ctrl.signal.aborted) {
-    sse(res, 'error', { message: friendlyError(lastErr, lastErr.prov) });
+    const msg = friendlyError(lastErr, lastErr.prov);
+    if (jsonMode) jErr = msg;
+    else sse(res, 'error', { message: msg });
   }
 
   if (acc.text || acc.reasoning) {
@@ -935,6 +945,18 @@ async function handleChat(req, res) {
   }
   saveChats();
   addUsage({ provider: usedProv ? usedProv.id : 'auto', prompt: acc.prompt, completion: acc.completion, kind: 'text' });
+  if (jsonMode) {
+    const okResp = !jErr || !!(acc.text || acc.reasoning);
+    return sendJson(res, {
+      ok: okResp, chatId: chat.id,
+      provider: usedProv ? usedProv.id : 'auto', model: usedModel || '',
+      error: jErr || null,
+      message: (acc.text || acc.reasoning) ? {
+        content: acc.text || '(stopped)', reasoning: acc.reasoning || undefined,
+        stopped: !acc.finished, prompt: acc.prompt, completion: acc.completion,
+      } : null,
+    }, okResp ? 200 : 502);
+  }
   sse(res, 'done', { provider: usedProv ? usedProv.id : 'auto', model: usedModel || '', stopped: !acc.finished, prompt: acc.prompt, completion: acc.completion });
   res.end();
 }

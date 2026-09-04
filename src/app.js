@@ -500,9 +500,17 @@ function rndId(){ return Math.random().toString(36).slice(2,10); }
 
 async function runStream(payload){
   let resp;
-  try{ resp=await apiFetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:state.abort.signal}); }
+  try{ resp=await apiFetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},payload,{json:true})),signal:state.abort.signal}); }
   catch(e){ setStreamingUI(false); toast('Network error — is the server running?'); return; }
   if(!resp.ok||!resp.body){ let msg='Stream failed ('+resp.status+')'; try{ msg=(await resp.json()).error||msg; }catch{} showErrorBubble(msg); setStreamingUI(false); return; }
+  const ct=(resp.headers.get('content-type')||'').toLowerCase();
+  if(ct.includes('application/json')){
+    let j=null; try{ j=await resp.json(); }catch{}
+    setStreamingUI(false);
+    if(j&&j.ok&&j.chatId){ state.chatId=j.chatId; await refreshSilent(); await reconcileReply(); }
+    else showErrorBubble((j&&j.error)||'Reply failed — check Settings API keys');
+    return;
+  }
   const reader=resp.body.getReader(); const dec=new TextDecoder();
   let buf='', acc={text:'',reasoning:''}, meta={}, err=null;
   let node=null, contentEl=null, reasoningEl=null;
