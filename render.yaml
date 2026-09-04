@@ -1,0 +1,25 @@
+# Render Blueprint — one-click deploy of Aaru AI with PostgreSQL.
+# In Render: "New +" → Blueprint → select your Musahid33/AaruAi repo → Apply.
+# Free tier notes: the web service sleeps after ~15 min idle (first load after
+# sleep takes ~50s to wake); the free PostgreSQL instance expires after 30 days
+# (upgrade or export your data before then).
+services:
+  - type: web
+    name: aaru-ai
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aaru-ai-db
+          property: connectionString
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: PORT
+        value: "3000"
+
+databases:
+  - name: aaru-ai-db
+    plan: free

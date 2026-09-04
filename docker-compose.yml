@@ -1,0 +1,13 @@
+services:
+  aaru-ai:
+    build: .
+    container_name: aaru-ai
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      # set to 1 when serving over HTTPS (secure cookies)
+      - COOKIE_SECURE=0
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

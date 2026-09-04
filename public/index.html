@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aaru AI — Personal AI Studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='1' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M16 6l2.4 7.6L26 16l-7.6 2.4L16 26l-2.4-7.6L6 16l7.6-2.4z' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="side-top">
+      <div class="logo">
+        <span class="logo-mark" id="logoMark"></span>
+        <div><div class="logo-name" id="wsNameSide">Aaru AI</div><div class="logo-sub" id="taglineSide">Personal AI Studio</div></div>
+      </div>
+      <button id="newChatBtn" class="new-chat"><span id="newChatIcon"></span>New Chat</button>
+    </div>
+    <nav id="sideNav" class="side-scroll"></nav>
+    <div class="recent-wrap">
+      <div class="side-label-row"><span>Recent Chats</span><button id="seeAllBtn" class="linkish">See all</button></div>
+      <div class="side-scroll" id="recentList"></div>
+    </div>
+    <div id="profileCard">
+      <div class="avatar" id="sideAvatar">M</div>
+      <div class="profile-meta"><div id="sideName">Musahid</div><div class="muted" id="sideTagline">Dream • Build • Do</div></div>
+      <button class="icon-btn small" id="sideSettings" title="Settings"></button>
+    </div>
+  </aside>
+
+  <div id="main">
+    <header id="topbar">
+      <button class="icon-btn" id="sidebarToggle" title="Menu"></button>
+      <div class="search-wrap"><span class="srch-ic" id="searchIcon"></span><input id="globalSearch" placeholder="Search chats, projects, files..."><span class="kbd-hint">Ctrl K</span></div>
+      <div class="topbar-right">
+        <span class="mode-badge"><i class="dot"></i>Free Mode</span>
+        <button class="icon-btn" id="topSettingsBtn" title="Settings"></button>
+        <button class="icon-btn" id="bellBtn" title="Notifications"></button>
+        <button class="btn-ghost" id="newWorkspaceBtn">+ New Workspace</button>
+        <div class="avatar pill" id="topAvatar">M</div>
+      </div>
+    </header>
+
+    <main id="content">
+      <section id="hero">
+        <div class="hero-inner">
+          <div id="greeting" class="hero-title">Good morning</div>
+          <div class="hero-sub">What will we create today?</div>
+          <div class="hero-tag"><span class="hero-quote">“Ideas to Reality. Faster.”</span> One place. All AI tools. Endless possibilities.</div>
+        </div>
+      </section>
+
+      <section id="toolsSection"><div id="toolsGrid"></div></section>
+
+      <div id="workspace">
+        <section id="chatPane">
+          <div id="toolPills"></div>
+
+          <div id="aiosCard">
+            <div class="aios-logo" id="aiosLogo"></div>
+            <div class="aios-info">
+              <div class="aios-title" id="aiosTitle">Aaru AI <span class="badge-green"><i></i>Free Mode</span></div>
+              <div class="aios-sub" id="aiosSub">Your personal AI assistant. Ask anything, create anything.</div>
+            </div>
+            <div class="model-wrap">
+              <span class="model-label">Model</span>
+              <select id="modelSelect"></select>
+            </div>
+          </div>
+
+          <div id="welcomeCard">
+            <div class="welcome-hi" id="welcomeHi">Hi!</div>
+            <p>I can help you with coding, images, videos, voice, music, presentations, apps, and more.<br>Just tell me what you want to create.</p>
+          </div>
+
+          <div id="messages"></div>
+          <div id="chipsRow"></div>
+
+          <div id="composer">
+            <div id="attachPreview" class="hidden"></div>
+            <textarea id="input" rows="1" placeholder="Type your message here..."></textarea>
+            <div class="composer-bar">
+              <button class="bar-btn" id="attachBtn" title="Attach file(s)"></button>
+              <button class="bar-btn" id="drawBtn" title="Draw mode — send a prompt to the image model"></button>
+              <button class="bar-btn" id="webSearchBtn" title="Ground the answer with a web search"></button>
+              <button class="bar-btn" id="reasonBtn" title="Think step by step"></button>
+              <span id="agentChip" class="agent-chip hidden"></span>
+              <div class="bar-spacer"></div>
+              <button class="bar-btn sq" id="micBtn" title="Voice input"></button>
+              <button class="send-btn" id="sendBtn" title="Send"></button>
+            </div>
+          </div>
+        </section>
+
+        <aside id="previewPanel" class="hidden">
+          <div class="pv-head">
+            <span class="pv-file" id="pvFile">App.jsx</span>
+            <span class="badge pv-lang" id="pvLang">React</span>
+            <div class="pv-actions">
+              <div class="pv-devices">
+                <button class="pv-dev on" data-dev="desktop" title="Desktop">🖥</button>
+                <button class="pv-dev" data-dev="mobile" title="Mobile">📱</button>
+              </div>
+              <button class="pv-btn" id="pvRefresh" title="Reload preview">⟳</button>
+              <button class="pv-btn" id="pvCodeBtn" title="Toggle code view">{ }</button>
+              <button class="pv-btn" id="pvCopy" title="Copy code"></button>
+              <button class="pv-btn" id="pvNewTab" title="Open in new tab">↗</button>
+              <button class="pv-btn" id="pvClose" title="Close preview">✕</button>
+            </div>
+          </div>
+          <div class="pv-body" id="pvBody">
+            <div class="pv-empty" id="pvEmpty">
+              <div class="pv-empty-ic">🖥️</div>
+              <h4>Live Preview</h4>
+              <p>When you generate a website or app (Code / Web-App tool), the app renders here in real time — with device toggles and open-in-new-tab.</p>
+            </div>
+            <div class="pv-frame-wrap">
+              <iframe id="pvFrame" title="Live preview" sandbox="allow-scripts allow-modals allow-forms allow-popups"></iframe>
+            </div>
+            <div id="pvCode"></div>
+          </div>
+        </aside>
+
+        <aside id="rail">
+          <div class="rail-card">
+            <div class="rail-head">Today's Usage (Free)<span class="rail-sub" id="usageReset"></span></div>
+            <div id="usageRows"></div>
+          </div>
+          <div class="rail-card">
+            <div class="rail-head">Quick Tools</div>
+            <div id="quickGrid"></div>
+          </div>
+          <div class="rail-card">
+            <div class="rail-head">Current Project <button class="linkish" id="openProject">Open</button></div>
+            <div id="projectBody"></div>
+          </div>
+          <div class="rail-card quote-card">
+            <div class="quote-txt">“Small Prompts.<br>Big Creations.”</div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ===== Settings modal ===== -->
+<div id="modalBack" class="hidden">
+  <div id="settingsModal" class="modal modal-wide hidden">
+    <div class="modal-head"><h2>Settings</h2><button class="icon-btn" data-close title="Close"></button></div>
+    <div class="modal-split">
+      <nav id="setNav" class="set-nav">
+        <button class="set-tab on" data-sec="general">⚙️ General</button>
+        <button class="set-tab" data-sec="appearance">🎨 Appearance</button>
+        <button class="set-tab" data-sec="profile">🅰️ Profile &amp; Logo</button>
+        <button class="set-tab" data-sec="models">🧠 AI Models</button>
+        <button class="set-tab" data-sec="api">🔌 API Manager</button>
+        <button class="set-tab" data-sec="mcp">🛠️ MCP Servers</button>
+        <button class="set-tab" data-sec="plugins">🧩 Plugins</button>
+        <button class="set-tab" data-sec="workspace">🗂️ Workspace</button>
+        <button class="set-tab" data-sec="security">🔒 Security</button>
+        <button class="set-tab" data-sec="backup">💾 Backup &amp; Sync</button>
+      </nav>
+      <div class="modal-body set-content">
+        <!-- GENERAL -->
+        <section class="set-sec" id="sec-general">
+          <h3>Profile</h3>
+          <label class="fld">Your name <input id="setName" class="inp"></label>
+          <label class="fld">System prompt (personality of Aaru AI)
+            <textarea id="setSystem" class="inp" rows="3"></textarea>
+          </label>
+          <div class="grid2">
+            <label class="fld">Temperature <input id="setTemp" class="inp" type="number" step="0.1" min="0" max="2"></label>
+            <label class="fld">Max tokens per reply <input id="setMaxTokens" class="inp" type="number" step="128" min="64"></label>
+          </div>
+          <h3>Daily usage limits</h3>
+          <div class="grid3">
+            <label class="fld">Text (k tokens) <input id="limitText" class="inp" type="number"></label>
+            <label class="fld">Images <input id="limitImages" class="inp" type="number"></label>
+            <label class="fld">Voice (min) <input id="limitVoice" class="inp" type="number"></label>
+            <label class="fld">Videos <input id="limitVideo" class="inp" type="number"></label>
+            <label class="fld">Music <input id="limitMusic" class="inp" type="number"></label>
+          </div>
+        </section>
+        <!-- APPEARANCE -->
+        <section class="set-sec hidden" id="sec-appearance">
+          <h3>Accent color</h3>
+          <div class="accents" id="accentRow">
+            <button class="accent" data-a="indigo" style="--c1:#6366f1;--c2:#8b5cf6"></button>
+            <button class="accent" data-a="blue" style="--c1:#3b82f6;--c2:#06b6d4"></button>
+            <button class="accent" data-a="green" style="--c1:#10b981;--c2:#34d399"></button>
+            <button class="accent" data-a="purple" style="--c1:#9333ea;--c2:#c084fc"></button>
+            <button class="accent" data-a="orange" style="--c1:#f97316;--c2:#fbbf24"></button>
+            <button class="accent" data-a="pink" style="--c1:#ec4899;--c2:#f472b6"></button>
+          </div>
+          <label class="fld" style="margin-top:16px">Compact mode (denser UI)
+            <input id="compactToggle" type="checkbox" class="inp" style="width:auto">
+          </label>
+        </section>
+        <!-- PROFILE & LOGO -->
+        <section class="set-sec hidden" id="sec-profile">
+          <div class="profile-card">
+            <div class="logo-prev" id="wsLogoPrev"><span>🅰️</span></div>
+            <div class="profile-fields">
+              <label class="fld">Workspace name <input id="setWsName" class="inp" placeholder="Aaru AI"></label>
+              <label class="fld">Tagline <input id="setTagline" class="inp" placeholder="Dream • Build • Do"></label>
+              <div class="row-btns">
+                <button class="primary-btn sm" id="logoUploadBtn">Change Logo</button>
+                <button class="btn-ghost sm" id="logoClearBtn">Remove</button>
+                <span class="note" style="margin:0 6px">PNG/JPG, ~200KB max</span>
+                <input type="file" id="wsLogoFile" accept="image/*" class="hidden">
+              </div>
+            </div>
+          </div>
+          <p class="note">Your workspace branding appears in the sidebar and on the Aaru AI card.</p>
+        </section>
+        <!-- AI MODELS -->
+        <section class="set-sec hidden" id="sec-models">
+          <div class="sec-head-row"><h3>AI Models</h3><button class="primary-btn sm" id="aiModelsAdd">+ Add Model</button></div>
+          <div id="aiModelsForm"></div>
+          <p class="note">Each model profile appears in the Model dropdown. Pick any provider for each.</p>
+        </section>
+        <!-- API MANAGER -->
+        <section class="set-sec hidden" id="sec-api">
+          <div class="sec-head-row"><h3>API Manager</h3><button class="primary-btn sm" id="apiAddBtn">+ Add API</button></div>
+          <div id="providersForm"></div>
+          <h3>Image generation</h3>
+          <div class="grid3">
+            <label class="fld">Provider <select id="imgProvider" class="inp"></select></label>
+            <label class="fld">Model <input id="imgModel" class="inp" placeholder="gpt-image-1"></label>
+            <label class="fld">Size <select id="imgSize" class="inp"><option>1024x1024</option><option>1792x1024</option><option>1024x1792</option><option>512x512</option></select></label>
+          </div>
+          <h3>Voice (text-to-speech)</h3>
+          <div class="grid3">
+            <label class="fld">Provider <select id="ttsProvider" class="inp"></select></label>
+            <label class="fld">Model <input id="ttsModel" class="inp" placeholder="tts-1"></label>
+            <label class="fld">Voice <select id="ttsVoice" class="inp"><option>alloy</option><option>echo</option><option>fable</option><option>onyx</option><option>nova</option><option>shimmer</option></select></label>
+          </div>
+          <p class="note">Keys are stored only in <code>data/config.json</code> on your machine.</p>
+        </section>
+        <!-- MCP -->
+        <section class="set-sec hidden" id="sec-mcp">
+          <div class="sec-head-row"><h3>MCP Servers</h3><span class="note" style="margin:0">Frameworks for AI tool-use</span></div>
+          <div id="mcpForm"></div>
+          <p class="note">MCP connects Aaru AI to external tools (files, docs, browsers). Enabled entries appear as attach/plugin options; custom adapters can be added via the server API.</p>
+        </section>
+        <!-- PLUGINS -->
+        <section class="set-sec hidden" id="sec-plugins">
+          <div class="sec-head-row"><h3>Plugins &amp; Integrations</h3></div>
+          <div id="pluginForm"></div>
+        </section>
+        <!-- WORKSPACE -->
+        <section class="set-sec hidden" id="sec-workspace">
+          <h3>Workspace</h3>
+          <label class="fld">Workspace name <input id="wsName2" class="inp"></label>
+          <label class="fld">Tagline <input id="wsTagline2" class="inp"></label>
+          <div class="info-box">
+            <p><b>Storage engine:</b> <code id="dbMode" style="word-break:break-all">JSON files (data/)</code></p>
+            <p><b>Data location:</b> <code style="word-break:break-all" id="dataPath">data/ (on this machine)</code></p>
+            <p><b>Contents:</b> chat history, usage counters, API keys, workspace settings.</p>
+            <button class="btn-ghost sm" id="helpBtn2">How to get API keys?</button>
+          </div>
+        </section>
+        <!-- SECURITY -->
+        <section class="set-sec hidden" id="sec-security">
+          <h3>Account</h3>
+          <div class="info-box">
+            <p><b>Signed in as:</b> <span id="acctUser">—</span></p>
+            <p>Session lasts 30 days on this device and survives server restarts.</p>
+          </div>
+          <div class="row-btns" style="margin-bottom:18px">
+            <button class="btn-ghost sm danger" id="logoutBtn">Log out</button>
+          </div>
+          <h3>Allow new signups</h3>
+          <label class="switch"><input type="checkbox" id="authAllowSignup"><span class="tr"></span></label>
+          <p class="note">Off by default after the first account is created — only you can sign in. Turn on to let family/friends create accounts too.</p>
+          <h3>Security notes</h3>
+          <ul class="help-list">
+            <li>API keys never leave your machine — they are sent only to the provider you selected.</li>
+            <li>Run this on a computer you trust. If you host it publicly, put an auth proxy in front.</li>
+            <li>Use per-provider keys with the minimum permissions you need.</li>
+            <li>Rotate a key immediately if you think it leaked.</li>
+          </ul>
+          <button class="btn-ghost sm" id="helpBtn">Show key sources</button>
+        </section>
+        <!-- BACKUP -->
+        <section class="set-sec hidden" id="sec-backup">
+          <h3>Backup &amp; Sync</h3>
+          <div class="row-btns" style="margin-bottom:14px">
+            <button class="primary-btn sm" id="exportBtn">⬇ Export backup (JSON)</button>
+            <button class="btn-ghost sm" id="importBtn">⬆ Import backup</button>
+            <input type="file" id="importFile" accept=".json,application/json" class="hidden">
+          </div>
+          <div class="row-btns">
+            <button class="btn-ghost sm danger" id="resetBtn">⚠ Reset everything</button>
+          </div>
+          <p class="note">Backups include chats, usage and settings (including API keys — keep the file safe).</p>
+        </section>
+      </div>
+    </div>
+    <div class="modal-foot"><span class="note" id="saveNote"></span><div class="bar-spacer"></div><button class="primary-btn" id="saveSettings">Save settings</button></div>
+  </div>
+
+  <div id="helpModal" class="modal hidden">
+    <div class="modal-head"><h2>How to get API keys</h2><button class="icon-btn" data-close title="Close"></button></div>
+    <div class="modal-body">
+      <p class="note">Open one of these, create a key, paste it in <b>Settings → API Manager</b>, then enable that provider. You only need ONE to start.</p>
+      <ul class="help-list" id="helpList"></ul>
+      <h3>Free options</h3>
+      <ul class="help-list">
+        <li><b>Ollama</b> — run models on your own PC, completely free and private. <code>ollama pull llama3.2</code> then enable "Ollama (local)" and set model <code>llama3.2</code>.</li>
+        <li><b>Groq</b> — free tier, very fast (Llama, GPT-OSS).</li>
+        <li><b>Gemini</b> — free tier API key.</li>
+        <li><b>Custom / Arena</b> — any OpenAI-compatible endpoint: an Arena bridge, LM Studio, vLLM, Together, Fireworks, Azure OpenAI… enter its base URL + key + model.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===== Agents modal ===== -->
+  <div id="agentsModal" class="modal hidden">
+    <div class="modal-head"><h2>Automation — Agents &amp; Workflows</h2><button class="icon-btn" data-close title="Close"></button></div>
+    <div class="modal-body">
+      <div id="agentsGrid" class="agents-grid"></div>
+      <h3>Create a custom agent</h3>
+      <div class="agent-form">
+        <input id="agentName" class="inp" placeholder="Agent name, e.g. My Sales Copywriter" maxlength="60">
+        <input id="agentInstr" class="inp" placeholder="Instructions, e.g. You write persuasive sales copy in a friendly tone…" maxlength="400">
+        <button class="primary-btn sm" id="agentSave">Add agent</button>
+      </div>
+      <p class="note">Pick an agent to activate it for this conversation — it takes over the assistant's role. Click its chip above the input to switch back.</p>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+<script src="/app.min.js"></script>
+</body>
+</html>
