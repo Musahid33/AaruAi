@@ -552,6 +552,7 @@ async function runStream(payload){
   }
   setStreamingUI(false);
   if(err) showErrorBubble(err);
+  else if(!acc.text && state.streaming){ toast('Connection lost — loading saved reply…'); await refreshSilent(); }
   maybePreview(acc.text);
   await refreshSilent();
 }
