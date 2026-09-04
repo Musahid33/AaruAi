@@ -984,8 +984,26 @@ async function handleImages(req, res) {
   const cfg = config.image || {};
   const prov = providerSettings(cfg.provider || 'openai');
   const model = cfg.model || 'gpt-image-1';
-  if (!prov.hasKey) return sendJson(res, { error: `No API key for ${prov.label} — needed for image generation. Add it in Settings.` }, 400);
-  if (!prov.baseURL) return sendJson(res, { error: 'Set an image-provider base URL in Settings → Image generation.' }, 400);
+  if (!prov.hasKey && !prov.local) return sendJson(res, { error: `No API key for ${prov.label} — needed for image generation. Add it in Settings.` }, 400);
+  if (!prov.baseURL && prov.id !== 'pollinations') return sendJson(res, { error: 'Set an image-provider base URL in Settings → Image generation.' }, 400);
+
+  if (prov.id === 'pollinations' || /pollinations\.ai/.test(prov.baseURL || '')) {
+    const dims = String(cfg.size || '1024x1024').split('x');
+    const w = parseInt(dims[0], 10) || 1024, h = parseInt(dims[1], 10) || 1024;
+    const purl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) + '?width=' + w + '&height=' + h + '&nologo=true&model=' + encodeURIComponent(model || 'flux');
+    let pr = null; let lastErr = null;
+    for (let att = 0; att < 2; att++) {
+      try { pr = await fetch(purl, { signal: AbortSignal.timeout(90000) }); if (pr.ok) break; lastErr = pr.status; } catch (e) { lastErr = e.message; }
+      pr = null;
+      if (att === 0) await new Promise((r) => setTimeout(r, 2000));
+    }
+    if (!pr || !pr.ok) return sendJson(res, { error: 'Pollinations image failed: ' + (lastErr || 'timeout') }, 502);
+    const buf = Buffer.from(await pr.arrayBuffer());
+    const name = 'gen-' + Date.now() + '-' + makeId(3) + '.png';
+    fs.writeFileSync(path.join(GEN_DIR, name), buf);
+    addUsage({ provider: 'pollinations', kind: 'image' });
+    return sendJson(res, { url: '/files/generated/' + name, prompt, model: model || 'flux' });
+  }
 
   const url = `${prov.baseURL}/images/generations`;
   const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + providerKey(prov.id) };

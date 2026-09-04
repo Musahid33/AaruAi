@@ -377,5 +377,5 @@ body.compact .msg-content{font-size:14px}
 
 /* ============ CLEAN CHAT MODE — sirf messages + input ============ */
 #toolPills,#aiosCard,#welcomeCard,#chipsRow{display:none !important}
-#drawBtn{display:none !important}
+/* #drawBtn available — image mode ON */
 #chatPane{justify-content:flex-start}
