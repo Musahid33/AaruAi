@@ -828,7 +828,7 @@ function openSettings(sec){
   // workspace tab
   $('#wsName2').value=s.wsName||'Aaru AI'; $('#wsTagline2').value=s.tagline||'';
   $('#dataPath').textContent=s.dataDir||'data/ (on this machine)';
-  $('#dbMode').textContent=(s.dbMode==='postgres')?'PostgreSQL (DATABASE_URL)':'JSON files (data/)';
+  $('#dbMode').textContent=(s.dbMode==='postgres')?'PostgreSQL (DATABASE_URL)':(s.dbMode==='firebase')?'Firebase Firestore':(s.dbMode==='rtdb')?'Firebase Realtime DB':'JSON files (data/)';
   // security / account
   $('#acctUser').textContent=(s.user&&s.user.username)||'—';
   $('#authAllowSignup').checked=!!s.authAllowSignup;
