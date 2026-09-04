@@ -537,6 +537,7 @@ async function runStream(payload){
         const finalMeta={provider:meta.provider||j.provider, model:meta.model||j.model, profile:meta.profile||null, usage:j?{prompt:j.prompt||0,completion:j.completion||0}:undefined, stopped:j&&j.stopped};
         setStreamingUI(false);
         if(err && !acc.text){ showErrorBubble(err); }
+        else if(!(acc.text||acc.reasoning)){ await reconcileReply(); }
         else if(acc.text||acc.reasoning){
           ensureNode();
           const m={id:rndId(), role:'assistant', content:acc.text||'(stopped)', reasoning:acc.reasoning||undefined, ...finalMeta, ts:Date.now()};
@@ -552,9 +553,23 @@ async function runStream(payload){
   }
   setStreamingUI(false);
   if(err) showErrorBubble(err);
-  else if(!acc.text && state.streaming){ toast('Connection lost — loading saved reply…'); await refreshSilent(); }
+  else if(!acc.text) await reconcileReply();
   maybePreview(acc.text);
   await refreshSilent();
+}
+async function reconcileReply(){
+  const id=state.chatId; if(!id) return;
+  try{
+    const r=await apiFetch('/api/chats/'+id);
+    if(!r.ok) return;
+    const c=await r.json();
+    if(c && Array.isArray(c.messages) && c.messages.length){
+      const last=c.messages[c.messages.length-1];
+      if(last && last.role==='assistant' && (last.content||last.reasoning)){
+        state.msgs=c.messages; renderChat(); scrollBottom(); toast('Reply loaded ✓');
+      }
+    }
+  }catch(e){}
 }
 function showErrorBubble(msg){
   const n=el(`<div class="msg-assistant"><span class="msg-av">${ICONS.sparkle}</span><div class="msg-body"><div class="msg-error">⚠️ ${esc(msg)}</div></div></div>`);

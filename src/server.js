@@ -539,15 +539,16 @@ function resolveChatProvider(requestedId) {
 
 /* Auto mode: try providers in priority order, fall back automatically. */
 const AUTO_PRIORITY = ['omniroute', 'openrouter', 'openai', 'deepseek', 'groq', 'gemini', 'anthropic', 'custom', 'ollama'];
+function isLocalURL(u) { return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(String(u || '')); }
 function autoCandidates() {
   const list = [];
   for (const id of AUTO_PRIORITY) {
     const st = providerSettings(id);
-    if (st && st.enabled && (st.hasKey || st.local)) list.push(st);
+    if (st && st.enabled && (st.hasKey || st.local) && !isLocalURL(st.baseURL)) list.push(st);
   }
   for (const c of CATALOG) {
     const st = providerSettings(c.id);
-    if (st && st.enabled && (st.hasKey || st.local) && !list.includes(st)) list.push(st);
+    if (st && st.enabled && (st.hasKey || st.local) && !isLocalURL(st.baseURL) && !list.includes(st)) list.push(st);
   }
   return list;
 }
@@ -906,9 +907,10 @@ async function handleChat(req, res) {
     if (!model) { lastErr = new ApiError(400, 'No model selected for ' + prov.label + '. Choose one in Settings → ' + prov.label + ' → Model.', prov); continue; }
     sse(res, 'meta', { chatId: chat.id, provider: prov.id, model, profile: profileName ? { id: profileId, name: profileName } : null, auto: provs.length > 1 });
     const t0 = acc.text.length, r0 = acc.reasoning.length, u0 = { prompt: acc.prompt, completion: acc.completion };
+    const sig = (typeof AbortSignal.any === 'function') ? AbortSignal.any([ctrl.signal, AbortSignal.timeout(90000)]) : ctrl.signal;
     try {
-      if (prov.native) await streamAnthropic(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: ctrl.signal });
-      else await streamOpenAICompat(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: ctrl.signal });
+      if (prov.native) await streamAnthropic(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: sig });
+      else await streamOpenAICompat(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: sig });
       acc.finished = true;
       usedProv = prov; usedModel = model;
       break;
