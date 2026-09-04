@@ -1050,7 +1050,7 @@ const server = http.createServer(async (req, res) => {
 initStorage().then(() => {
   server.listen(PORT, '0.0.0.0', () => {
     console.log('Aaru AI running at http://localhost:' + PORT);
-    console.log('Storage:', dbMode === 'postgres' ? 'PostgreSQL' : 'JSON files (data/)');
+    console.log('Storage:', dbMode === 'postgres' ? 'PostgreSQL' : dbMode === 'firebase' ? 'Firebase Firestore' : dbMode === 'rtdb' ? 'Firebase Realtime DB' : 'JSON files (data/)');
   });
 }).catch((e) => {
   console.error('FATAL init failed:', e.message);
