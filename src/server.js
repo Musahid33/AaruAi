@@ -242,6 +242,11 @@ const CATALOG = [
   { id: 'together', label: 'Together AI', baseURL: 'https://api.together.xyz/v1', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', keyURL: 'https://api.together.xyz/settings/api-keys', envKey: 'TOGETHER_API_KEY', models: ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'meta-llama/Llama-3.1-8B-Instruct-Turbo', 'deepseek-ai/DeepSeek-V3', 'Qwen/Qwen2.5-72B-Instruct-Turbo'] },
   { id: 'huggingface', label: 'Hugging Face', baseURL: 'https://router.huggingface.co/v1', defaultModel: 'meta-llama/Llama-3.1-8B-Instruct', keyURL: 'https://huggingface.co/settings/tokens', envKey: 'HF_TOKEN', models: ['meta-llama/Llama-3.1-8B-Instruct', 'Qwen/Qwen2.5-72B-Instruct', 'mistralai/Mistral-7B-Instruct-v0.3', 'microsoft/Phi-3.5-mini-instruct'] },
   { id: 'cloudflare', label: 'Cloudflare AI', baseURL: 'https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/v1', defaultModel: '@cf/meta/llama-3.1-8b-instruct', keyURL: 'https://dash.cloudflare.com', envKey: 'CLOUDFLARE_API_TOKEN', models: ['@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/qwen/qwen2.5-coder-32b-instruct', '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b'] },
+  { id: 'nvidia', label: 'NVIDIA NIM (free — 126 models)', baseURL: 'https://integrate.api.nvidia.com/v1', defaultModel: 'poolside/laguna-xs-2.1', keyURL: 'https://build.nvidia.com/settings/api-keys', envKey: 'NVIDIA_API_KEY', models: ['poolside/laguna-xs-2.1', 'z-ai/glm-5.2', 'z-ai/glm-5.1'] },
+  { id: 'mistral', label: 'Mistral AI (free tier)', baseURL: 'https://api.mistral.ai/v1', defaultModel: 'mistral-small-latest', keyURL: 'https://console.mistral.ai/api-keys', envKey: 'MISTRAL_API_KEY', models: ['mistral-small-latest', 'mistral-medium-latest', 'mistral-large-latest', 'open-mistral-nemo'] },
+  { id: 'cerebras', label: 'Cerebras (free — very fast)', baseURL: 'https://api.cerebras.ai/v1', defaultModel: 'llama-3.3-70b', keyURL: 'https://cloud.cerebras.ai/', envKey: 'CEREBRAS_API_KEY', models: ['llama-3.3-70b', 'llama-3.1-8b'] },
+  { id: 'cohere', label: 'Cohere (free trial key)', baseURL: 'https://api.cohere.ai/compatibility/v1', defaultModel: 'command-a-03-2025', keyURL: 'https://dashboard.cohere.com/api-keys', envKey: 'COHERE_API_KEY', models: ['command-a-03-2025', 'command-r-plus-08-2024', 'command-r-08-2024'] },
+  { id: 'zai', label: 'Z.AI / GLM (free)', baseURL: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'glm-4.6', keyURL: 'https://open.bigmodel.cn/usercenter/apikeys', envKey: 'ZAI_API_KEY', models: ['glm-4.6', 'glm-4.5', 'glm-4.5-air', 'glm-4-flash'] },
   { id: 'custom', label: 'Custom / Arena (OpenAI-compatible)', baseURL: '', defaultModel: '', keyURL: '', envKey: 'CUSTOM_API_KEY', models: [] },
 ];
 
@@ -539,7 +544,7 @@ function resolveChatProvider(requestedId) {
 }
 
 /* Auto mode: try providers in priority order, fall back automatically. */
-const AUTO_PRIORITY = ['openrouter', 'pollinations', 'openai', 'deepseek', 'groq', 'gemini', 'anthropic', 'custom', 'ollama'];
+const AUTO_PRIORITY = ['openrouter', 'pollinations', 'nvidia', 'groq', 'mistral', 'cerebras', 'cohere', 'zai', 'openai', 'deepseek', 'groq', 'gemini', 'anthropic', 'custom', 'ollama'];
 function isLocalURL(u) { return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(String(u || '')); }
 function autoCandidates() {
   const list = [];
