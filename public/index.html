@@ -234,9 +234,15 @@
           <div class="grid3">
             <label class="fld">Provider <select id="ttsProvider" class="inp"></select></label>
             <label class="fld">Model <input id="ttsModel" class="inp" placeholder="tts-1"></label>
-            <label class="fld">Voice <select id="ttsVoice" class="inp"><option>alloy</option><option>echo</option><option>fable</option><option>onyx</option><option>nova</option><option>shimmer</option></select></label>
+            <label class="fld">Voice <input id="ttsVoice" class="inp" placeholder="alloy / ElevenLabs voice ID"></label>
           </div>
-          <p class="note">Keys are stored only in <code>data/config.json</code> on your machine.</p>
+          <h3>Web search (optional — Tavily / Jina)</h3>
+          <div class="grid2">
+            <label class="fld">Tavily API key <input id="tavilyKey" class="inp" type="password" autocomplete="off" placeholder="tvly-..."></label>
+            <label class="fld">Jina AI key <input id="jinaKey" class="inp" type="password" autocomplete="off" placeholder="jina_..."></label>
+          </div>
+          <p class="note">Without these, free DuckDuckGo + Wikipedia search is used automatically.</p>
+          <p class="note">Keys are stored safely in your app database (Firebase) — never in the repo.</p>
         </section>
         <!-- MCP -->
         <section class="set-sec hidden" id="sec-mcp">

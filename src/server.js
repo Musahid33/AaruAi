@@ -237,6 +237,9 @@ const CATALOG = [
   { id: 'openrouter', label: 'OpenRouter (all models)', baseURL: 'https://openrouter.ai/api/v1', defaultModel: 'openrouter/auto', keyURL: 'https://openrouter.ai/keys', envKey: 'OPENROUTER_API_KEY', models: ['openrouter/auto'] },
   { id: 'anthropic', label: 'Anthropic (Claude)', baseURL: 'https://api.anthropic.com', defaultModel: 'claude-sonnet-4-5', keyURL: 'https://console.anthropic.com/settings/keys', envKey: 'ANTHROPIC_API_KEY', native: true, models: ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-haiku-4-5'] },
   { id: 'ollama', label: 'Ollama (local, free)', baseURL: 'http://localhost:11434/v1', defaultModel: 'llama3.2', keyURL: 'https://ollama.com', local: true, models: ['llama3.2', 'llama3.3', 'qwen2.5', 'mistral', 'phi4'] },
+  { id: 'together', label: 'Together AI', baseURL: 'https://api.together.xyz/v1', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', keyURL: 'https://api.together.xyz/settings/api-keys', envKey: 'TOGETHER_API_KEY', models: ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'meta-llama/Llama-3.1-8B-Instruct-Turbo', 'deepseek-ai/DeepSeek-V3', 'Qwen/Qwen2.5-72B-Instruct-Turbo'] },
+  { id: 'huggingface', label: 'Hugging Face', baseURL: 'https://router.huggingface.co/v1', defaultModel: 'meta-llama/Llama-3.1-8B-Instruct', keyURL: 'https://huggingface.co/settings/tokens', envKey: 'HF_TOKEN', models: ['meta-llama/Llama-3.1-8B-Instruct', 'Qwen/Qwen2.5-72B-Instruct', 'mistralai/Mistral-7B-Instruct-v0.3', 'microsoft/Phi-3.5-mini-instruct'] },
+  { id: 'cloudflare', label: 'Cloudflare AI', baseURL: 'https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/v1', defaultModel: '@cf/meta/llama-3.1-8b-instruct', keyURL: 'https://dash.cloudflare.com', envKey: 'CLOUDFLARE_API_TOKEN', models: ['@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/qwen/qwen2.5-coder-32b-instruct', '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b'] },
   { id: 'custom', label: 'Custom / Arena (OpenAI-compatible)', baseURL: '', defaultModel: '', keyURL: '', envKey: 'CUSTOM_API_KEY', models: [] },
 ];
 
@@ -252,6 +255,8 @@ const DEFAULT_CONFIG = {
     'You help with coding, images, videos, voice, music, presentations, websites and apps. ' +
     'Be concise, friendly and practical. Use markdown formatting when useful and always put code in fenced code blocks.',
   autoProvider: true,
+  search: { provider: 'auto', tavily: '', jina: '' },
+  stt: { provider: 'assemblyai', key: '' },
   authAllowSignup: false,
   temperature: 0.7,
   maxTokens: 4096,
@@ -291,7 +296,7 @@ function writeJson(p, obj) {
 function mergeConfig(loaded) {
   const base = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   if (loaded && typeof loaded === 'object') {
-    for (const k of ['name', 'wsName', 'tagline', 'logo', 'accent', 'compact', 'systemPrompt', 'temperature', 'maxTokens', 'autoProvider', 'authAllowSignup', 'limits', 'image', 'tts', 'aiModels', 'mcp', 'plugins', 'agents']) {
+    for (const k of ['name', 'wsName', 'tagline', 'logo', 'accent', 'compact', 'systemPrompt', 'temperature', 'maxTokens', 'autoProvider', 'authAllowSignup', 'limits', 'image', 'tts', 'aiModels', 'mcp', 'plugins', 'agents', 'search', 'stt']) {
       if (loaded[k] !== undefined) base[k] = loaded[k];
     }
     const prov = (loaded.providers && typeof loaded.providers === 'object') ? loaded.providers : {};
@@ -531,6 +536,21 @@ function resolveChatProvider(requestedId) {
   return null;
 }
 
+/* Auto mode: try providers in priority order, fall back automatically. */
+const AUTO_PRIORITY = ['openrouter', 'openai', 'deepseek', 'groq', 'gemini', 'anthropic', 'custom', 'ollama'];
+function autoCandidates() {
+  const list = [];
+  for (const id of AUTO_PRIORITY) {
+    const st = providerSettings(id);
+    if (st && st.enabled && (st.hasKey || st.local)) list.push(st);
+  }
+  for (const c of CATALOG) {
+    const st = providerSettings(c.id);
+    if (st && st.enabled && (st.hasKey || st.local) && !list.includes(st)) list.push(st);
+  }
+  return list;
+}
+
 /* ------------------------- message conversion ------------------------- */
 function partsOf(m) {
   if (m && Array.isArray(m.parts) && m.parts.length) return m.parts;
@@ -723,6 +743,8 @@ function getState(session) {
     limits: config.limits,
     image: config.image,
     tts: config.tts,
+    search: { provider: (config.search && config.search.provider) || 'auto', tavily: !!((config.search || {}).tavily), jina: !!((config.search || {}).jina) },
+    stt: { provider: ((config.stt || {}).provider) || 'assemblyai', hasKey: !!((config.stt || {}).key) },
     aiModels: config.aiModels || [],
     mcp: config.mcp || {},
     plugins: config.plugins || {},
@@ -744,8 +766,11 @@ function getState(session) {
 
 async function handleSettings(req, res) {
   const body = JSON.parse((await readBody(req, 2e6)) || '{}');
-  for (const k of ['name', 'wsName', 'tagline', 'logo', 'accent', 'compact', 'systemPrompt', 'temperature', 'maxTokens', 'autoProvider', 'authAllowSignup', 'limits', 'image', 'tts', 'aiModels', 'mcp', 'plugins', 'agents']) {
+  for (const k of ['name', 'wsName', 'tagline', 'logo', 'accent', 'compact', 'systemPrompt', 'temperature', 'maxTokens', 'autoProvider', 'authAllowSignup', 'limits', 'image', 'aiModels', 'mcp', 'plugins', 'agents']) {
     if (body[k] !== undefined) config[k] = body[k];
+  }
+  for (const k of ['tts', 'search', 'stt']) {
+    if (body[k] && typeof body[k] === 'object') config[k] = { ...(config[k] || {}), ...body[k] };
   }
   if (body.providers && typeof body.providers === 'object') {
     for (const id of Object.keys(body.providers)) {
@@ -808,32 +833,31 @@ async function handleChat(req, res) {
   try { body = JSON.parse((await readBody(req)) || '{}'); }
   catch { sse(res, 'error', { message: 'Invalid request body' }); sse(res, 'done', {}); return res.end(); }
 
-  let prov;
+  let profileName = null;
   const profileId = body.modelProfile ? String(body.modelProfile) : '';
+  const provs = [];
   try {
     if (profileId) {
       const prof = (config.aiModels || []).find((p) => p.id === profileId);
       if (!prof) throw new ApiError(400, 'Unknown model profile "' + profileId + '"');
-      prov = resolveChatProvider(prof.provider);
+      const prov = resolveChatProvider(prof.provider);
       if (!prov) throw new ApiError(400, 'No AI provider configured. Open ⚙ Settings → enable a provider → paste an API key. (Or set up Ollama for free local models.)');
-      prov._resolvedFrom = 'profile';
-      prov._profileName = prof.name;
+      profileName = prof.name;
+      provs.push(prov);
     } else {
-      prov = resolveChatProvider(body.provider);
+      const requested = (body.provider && String(body.provider).trim()) || 'auto';
+      if (requested === 'auto') {
+        const list = autoCandidates();
+        if (!list.length) throw new ApiError(400, 'No AI provider configured. Open ⚙ Settings → enable a provider → paste an API key. (Or set up Ollama for free local models.)');
+        provs.push(...list);
+      } else {
+        const prov = resolveChatProvider(requested);
+        if (!prov) throw new ApiError(400, 'No AI provider configured. Open ⚙ Settings → enable a provider → paste an API key. (Or set up Ollama for free local models.)');
+        provs.push(prov);
+      }
     }
   } catch (e) {
     sse(res, 'error', { message: friendlyError(e, e.prov) });
-    sse(res, 'done', {});
-    return res.end();
-  }
-  if (!prov) {
-    sse(res, 'error', { message: 'No AI provider configured. Open ⚙ Settings → enable a provider → paste an API key. (Or set up Ollama for free local models.)' });
-    sse(res, 'done', {});
-    return res.end();
-  }
-  const model = (body.model && String(body.model).trim()) || prov.model;
-  if (!model) {
-    sse(res, 'error', { message: `No model selected for ${prov.label}. Choose one in Settings → ${prov.label} → Model.` });
     sse(res, 'done', {});
     return res.end();
   }
@@ -864,8 +888,6 @@ async function handleChat(req, res) {
   saveChats();
   // messages actually sent upstream: previous history + the new user message (if any)
   const sendMsgs = (commitUser && userParts.length) ? [...history, { role: 'user', parts: userParts }] : history;
-  sse(res, 'meta', { chatId: chat.id, provider: prov.id, model, profile: prov._profileName ? { id: profileId, name: prov._profileName } : null });
-
   const acc = { text: '', reasoning: '', prompt: 0, completion: 0, finished: false };
   const ctrl = new AbortController();
   req.on('close', () => ctrl.abort());
@@ -876,25 +898,41 @@ async function handleChat(req, res) {
     sse(res, 'usage', { prompt: acc.prompt, completion: acc.completion });
   };
 
-  try {
-    if (prov.native) await streamAnthropic(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: ctrl.signal });
-    else await streamOpenAICompat(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: ctrl.signal });
-    acc.finished = true;
-  } catch (e) {
-    if (!ctrl.signal.aborted) sse(res, 'error', { message: friendlyError(e, prov) });
+  // Auto mode: try each candidate provider until one answers (LMArena-style fallback)
+  let usedProv = null, usedModel = '', lastErr = null;
+  for (const prov of provs) {
+    const model = (body.model && String(body.model).trim()) || prov.model || '';
+    if (!model) { lastErr = new ApiError(400, 'No model selected for ' + prov.label + '. Choose one in Settings → ' + prov.label + ' → Model.', prov); continue; }
+    sse(res, 'meta', { chatId: chat.id, provider: prov.id, model, profile: profileName ? { id: profileId, name: profileName } : null, auto: provs.length > 1 });
+    const t0 = acc.text.length, r0 = acc.reasoning.length, u0 = { prompt: acc.prompt, completion: acc.completion };
+    try {
+      if (prov.native) await streamAnthropic(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: ctrl.signal });
+      else await streamOpenAICompat(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: ctrl.signal });
+      acc.finished = true;
+      usedProv = prov; usedModel = model;
+      break;
+    } catch (e) {
+      acc.text = acc.text.slice(0, t0); acc.reasoning = acc.reasoning.slice(0, r0);
+      acc.prompt = u0.prompt; acc.completion = u0.completion;
+      lastErr = e;
+      if (ctrl.signal.aborted) break;
+    }
+  }
+  if (!acc.finished && lastErr && !ctrl.signal.aborted) {
+    sse(res, 'error', { message: friendlyError(lastErr, lastErr.prov) });
   }
 
   if (acc.text || acc.reasoning) {
     chat.messages.push({
       id: makeId(), role: 'assistant', content: acc.text || '(stopped)',
       reasoning: acc.reasoning || undefined,
-      provider: prov.id, model, usage: { prompt: acc.prompt, completion: acc.completion },
+      provider: usedProv ? usedProv.id : (lastErr && lastErr.prov ? lastErr.prov.id : ''), model: usedModel || '', usage: { prompt: acc.prompt, completion: acc.completion },
       stopped: !acc.finished, ts: Date.now(),
     });
   }
   saveChats();
-  addUsage({ provider: prov.id, prompt: acc.prompt, completion: acc.completion, kind: 'text' });
-  sse(res, 'done', { provider: prov.id, model, stopped: !acc.finished, prompt: acc.prompt, completion: acc.completion });
+  addUsage({ provider: usedProv ? usedProv.id : 'auto', prompt: acc.prompt, completion: acc.completion, kind: 'text' });
+  sse(res, 'done', { provider: usedProv ? usedProv.id : 'auto', model: usedModel || '', stopped: !acc.finished, prompt: acc.prompt, completion: acc.completion });
   res.end();
 }
 
@@ -944,6 +982,22 @@ async function handleTTS(req, res) {
   const text = String(body.text || '').trim();
   if (!text) return sendJson(res, { error: 'Empty text' }, 400);
   const cfg = config.tts || {};
+  if (cfg.provider === 'elevenlabs') {
+    const key = cfg.key || process.env.ELEVENLABS_API_KEY || '';
+    if (!key) return sendJson(res, { error: 'Add an ElevenLabs API key in Settings → Voice.' }, 400);
+    const voice = cfg.voice || '21m00Tcm4TlvDq8ikWAM';
+    const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voice), {
+      method: 'POST',
+      headers: { 'xi-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model_id: cfg.model || 'eleven_multilingual_v2', text: text.slice(0, 4000), voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!r.ok) { const t = await r.text().catch(() => ''); return sendJson(res, { error: 'ElevenLabs: ' + extractApiError(t) }, r.status || 500); }
+    const buf = Buffer.from(await r.arrayBuffer());
+    addUsage({ provider: 'elevenlabs', completion: text.length, kind: 'tts' });
+    res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' });
+    return res.end(buf);
+  }
   const prov = providerSettings(cfg.provider || 'openai');
   if (!prov.hasKey) return sendJson(res, { error: `No API key for ${prov.label} — needed for TTS. Add it in Settings.` }, 400);
   if (!prov.baseURL) return sendJson(res, { error: 'Set a TTS base URL in Settings → Voice.' }, 400);
@@ -966,6 +1020,36 @@ async function handleTTS(req, res) {
 /* ------------------------- API: web search ------------------------- */
 async function handleSearch(res, q) {
   if (!q) return sendJson(res, { topics: [] });
+  const sc = config.search || {};
+  // 1) Tavily
+  const tKey = sc.tavily || process.env.TAVILY_API_KEY || '';
+  if (tKey) {
+    try {
+      const r = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: tKey, query: q, max_results: 6, search_depth: 'basic' }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const j = await r.json();
+      const topics = (j.results || []).map((x) => ({ text: (x.title || '') + (x.content ? '\n' + x.content : ''), url: x.url || '' }));
+      return sendJson(res, { heading: q, abstract: topics.length ? topics[0].text.split('\n')[0] : '', topics, source: 'tavily' });
+    } catch (e) { /* fall through */ }
+  }
+  // 2) Jina AI
+  const jKey = sc.jina || process.env.JINA_API_KEY || '';
+  if (jKey) {
+    try {
+      const r = await fetch('https://s.jina.ai/?q=' + encodeURIComponent(q), {
+        headers: { Authorization: 'Bearer ' + jKey, 'User-Agent': 'AaruAI/1.0' },
+        signal: AbortSignal.timeout(10000),
+      });
+      const j = await r.json();
+      const topics = ((j.data && j.data.results) || []).slice(0, 6).map((x) => ({ text: x.title || x.description || '', url: x.url || '' }));
+      return sendJson(res, { heading: q, abstract: topics.length ? topics[0].text : '', topics, source: 'jina' });
+    } catch (e) { /* fall through */ }
+  }
+  // 3) free fallback: DuckDuckGo instant answers + Wikipedia
   try {
     const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`;
     const r = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'AaruAI/1.0' } });
@@ -984,9 +1068,38 @@ async function handleSearch(res, q) {
         if (wj.extract) { abstract = wj.extract; heading = wj.title || q; topics.unshift({ text: wj.extract.slice(0, 220), url: wj.content_urls && wj.content_urls.desktop && wj.content_urls.desktop.page || '' }); }
       } catch {}
     }
-    sendJson(res, { heading, abstract, topics });
+    sendJson(res, { heading, abstract, topics, source: 'ddg' });
   } catch (e) {
     sendJson(res, { error: e.message, topics: [] });
+  }
+}
+
+/* ------------------------- API: speech-to-text (AssemblyAI) ------------------------- */
+async function handleTranscribe(req, res) {
+  let body;
+  try { body = JSON.parse((await readBody(req, 40e6)) || '{}'); } catch { return sendJson(res, { error: 'Invalid body' }, 400); }
+  const key = ((config.stt || {}).key) || process.env.ASSEMBLYAI_API_KEY || '';
+  if (!key) return sendJson(res, { error: 'Add an AssemblyAI key in Settings.' }, 400);
+  const buf = Buffer.from(String(body.audio || ''), 'base64');
+  if (!buf.length) return sendJson(res, { error: 'Empty audio' }, 400);
+  try {
+    const up = await fetch('https://api.assemblyai.com/v2/upload', { method: 'POST', headers: { authorization: key, 'content-type': 'application/octet-stream' }, body: buf, signal: AbortSignal.timeout(60000) });
+    if (!up.ok) return sendJson(res, { error: 'Upload failed: ' + (await up.text().catch(() => '')).slice(0, 140) }, 502);
+    const { upload_url } = await up.json();
+    const tr = await fetch('https://api.assemblyai.com/v2/transcript', { method: 'POST', headers: { authorization: key, 'content-type': 'application/json' }, body: JSON.stringify({ audio_url: upload_url, language_detection: true }), signal: AbortSignal.timeout(30000) });
+    const tj = await tr.json();
+    let t = null;
+    for (let i = 0; i < 36; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const sr = await fetch('https://api.assemblyai.com/v2/transcript/' + tj.id, { headers: { authorization: key }, signal: AbortSignal.timeout(20000) });
+      t = await sr.json();
+      if (t.status === 'completed' || t.status === 'error' || t.status === 'rejected') break;
+      if (!t) break;
+    }
+    if (!t || t.status !== 'completed') return sendJson(res, { error: (t && (t.error || t.status)) ? String(t.error || t.status).slice(0, 160) : 'Transcription timeout' }, 502);
+    sendJson(res, { text: t.text || '', words: t.words || [] });
+  } catch (e) {
+    sendJson(res, { error: 'AssemblyAI: ' + e.message }, 502);
   }
 }
 
@@ -1039,6 +1152,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/chats' && m === 'POST') return handleCreateChat(req, res);
     if (p === '/api/images' && m === 'POST') return await handleImages(req, res);
     if (p === '/api/tts' && m === 'POST') return await handleTTS(req, res);
+    if (p === '/api/transcribe' && m === 'POST') return await handleTranscribe(req, res);
     if (p === '/api/search' && m === 'GET') return await handleSearch(res, u.searchParams.get('q') || '');
     if (p === '/api/export' && m === 'GET') return handleExport(res);
     if (p === '/api/import' && m === 'POST') return await handleImport(req, res);

@@ -836,8 +836,10 @@ function openSettings(sec){
   $('#imgProvider').innerHTML=s.providers.map(p=>`<option value="${p.id}" ${(s.image.provider||'openai')===p.id?'selected':''}>${esc(p.label)}</option>`).join('');
   $('#imgModel').value=(s.image.model||'gpt-image-1');
   $('#imgSize').value=(s.image.size||'1024x1024');
-  $('#ttsProvider').innerHTML=s.providers.map(p=>`<option value="${p.id}" ${(s.tts.provider||'openai')===p.id?'selected':''}>${esc(p.label)}</option>`).join('');
+  $('#ttsProvider').innerHTML=s.providers.map(p=>`<option value="${p.id}" ${(s.tts.provider||'openai')===p.id?'selected':''}>${esc(p.label)}</option>`).join('')+`<option value="elevenlabs" ${s.tts.provider==='elevenlabs'?'selected':''}>ElevenLabs</option>`;
   $('#ttsModel').value=(s.tts.model||'tts-1'); $('#ttsVoice').value=(s.tts.voice||'alloy');
+  $('#tavilyKey').value=''; $('#tavilyKey').placeholder=(s.search&&s.search.tavily)?'Saved ✓ — leave blank to keep':'tvly-... (Tavily API key)';
+  $('#jinaKey').value=''; $('#jinaKey').placeholder=(s.search&&s.search.jina)?'Saved ✓ — leave blank to keep':'jina_... (Jina AI key)';
   renderProvForm(); renderAiModels(); renderMcp(); renderPlugins();
   modalOpen(true);
 }
@@ -944,6 +946,7 @@ async function saveSettings(){
     providers, aiModels, mcp, plugins,
     image:{provider:$('#imgProvider').value, model:$('#imgModel').value.trim(), size:$('#imgSize').value},
     tts:{provider:$('#ttsProvider').value, model:$('#ttsModel').value.trim(), voice:$('#ttsVoice').value},
+    search:Object.assign({provider:'auto'}, $('#tavilyKey').value.trim()?{tavily:$('#tavilyKey').value.trim()}:{}, $('#jinaKey').value.trim()?{jina:$('#jinaKey').value.trim()}:{}),
     limits:{ text:+$('#limitText').value||50, images:+$('#limitImages').value||20, voice:+$('#limitVoice').value||10, video:+$('#limitVideo').value||5, music:+$('#limitMusic').value||10 },
   };
   const btn=$('#saveSettings'); btn.textContent='Saving…'; btn.disabled=true;
@@ -1064,8 +1067,35 @@ function bind(){
   });
 }
 function autoGrow(t){ t.style.height='auto'; t.style.height=Math.min(t.scrollHeight,190)+'px'; }
-let recog=null, listening=false;
+let recog=null, listening=false, mediaRec=null, recChunks=[];
+function blobToB64(b){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(String(fr.result).split(',')[1]); fr.onerror=()=>rej(new Error('read failed')); fr.readAsDataURL(b); }); }
+async function micRecord(){
+  if(listening&&mediaRec&&mediaRec.state==='recording'){ mediaRec.stop(); return; }
+  if(listening) return;
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    mediaRec=new MediaRecorder(stream); recChunks=[];
+    mediaRec.ondataavailable=(e)=>{ if(e.data&&e.data.size) recChunks.push(e.data); };
+    mediaRec.onstop=async()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      $('#micBtn').classList.remove('on'); listening=false;
+      if(!recChunks.length){ $('#micBtn').innerHTML=ICONS.record; return; }
+      const blob=new Blob(recChunks,{type:(mediaRec.mimeType||'audio/webm')});
+      const b64=await blobToB64(blob);
+      $('#micBtn').innerHTML='…';
+      try{
+        const r=await apiFetch('/api/transcribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({audio:b64,mime:blob.type})});
+        const j=await r.json();
+        if(j&&j.text){ const a=$('#input'); a.value=(a.value? a.value+' ':'')+j.text; autoGrow(a); }
+        else toast((j&&j.error)||'Transcription failed');
+      }catch(e){ toast('Transcription failed — check AssemblyAI key'); }
+      $('#micBtn').innerHTML=ICONS.record;
+    };
+    mediaRec.start(); listening=true; $('#micBtn').classList.add('on'); toast('Recording… bolo, phir dobara tap karo');
+  }catch(e){ toast('Mic unavailable — allow microphone access'); }
+}
 function micInput(){
+  if(state.s.stt&&state.s.stt.hasKey){ micRecord(); return; }
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){ toast('Voice input needs a browser with SpeechRecognition (Chrome/Edge)'); return; }
   if(!recog){ recog=new SR(); recog.lang='en-IN'; recog.interimResults=false; recog.onresult=(e)=>{ const t=e.results[0][0].transcript; const a=$('#input'); a.value=(a.value? a.value+' ':'')+t; autoGrow(a); }; recog.onend=()=>{ listening=false; $('#micBtn').classList.remove('on'); }; recog.onerror=()=>{ listening=false; $('#micBtn').classList.remove('on'); }; }
