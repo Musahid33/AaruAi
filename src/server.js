@@ -759,7 +759,7 @@ function getState(session) {
     search: { provider: (config.search && config.search.provider) || 'auto', tavily: !!((config.search || {}).tavily), jina: !!((config.search || {}).jina) },
     stt: { provider: ((config.stt || {}).provider) || 'assemblyai', hasKey: !!((config.stt || {}).key) },
     aiModels: config.aiModels || [],
-    projects: projects.projects || [],
+    projects: (ensureDefaultProject(), projects.projects),
     mcp: config.mcp || {},
     plugins: config.plugins || {},
     agents: config.agents || [],
@@ -814,7 +814,13 @@ function ensureDefaultProject() {
     projects.projects = [{ id: 'def-' + makeId(6), name: 'My Workspace', createdAt: Date.now(), updatedAt: Date.now() }];
     saveProjects();
   }
-  return projects.projects[0];
+  const def = projects.projects[0];
+  let dirty = false;
+  for (const c of chats.chats) {
+    if (!c.projectId || String(c.projectId) === 'default') { c.projectId = def.id; dirty = true; }
+  }
+  if (dirty) saveChats();
+  return def;
 }
 function currentProjectId() {
   return (projects.projects[0] && projects.projects[0].id) || 'default';
