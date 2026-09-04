@@ -1233,7 +1233,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/export' && m === 'GET') return handleExport(res);
     if (p === '/api/import' && m === 'POST') return await handleImport(req, res);
     if (p === '/api/reset' && m === 'POST') return sendJson(res, resetToDefaults(req.session));
-    if (p === '/api/projects' && m === 'GET') return sendJson(res, { ok: true, projects: projects.projects });
+    if (p === '/api/projects' && m === 'GET') { ensureDefaultProject(); return sendJson(res, { ok: true, projects: projects.projects }); }
     if (p === '/api/projects' && m === 'POST') {
       const pb = JSON.parse((await readBody(req)) || '{}');
       const nm = String(pb.name || '').trim().slice(0, 60) || 'New Project';
