@@ -1,3 +1,11 @@
 node_modules/
 data/
 *.log
+
+# secrets — kabhi commit mat karna
+FIREBASE_SERVICE_ACCOUNT*
+serviceAccount*.json
+*aaru*firebase*setup*
+*.pem
+.env
+.env.*
