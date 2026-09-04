@@ -374,3 +374,8 @@ body.compact .msg-content{font-size:14px}
 #workspace{grid-template-columns:minmax(0,1fr) !important;margin-top:6px}
 #workspace.with-preview{grid-template-columns:minmax(0,1fr) minmax(320px,40%) !important}
 #chatPane{max-width:920px;margin:0 auto;width:100%}
+
+/* ============ CLEAN CHAT MODE — sirf messages + input ============ */
+#toolPills,#aiosCard,#welcomeCard,#chipsRow{display:none !important}
+#attachBtn,#drawBtn,#webSearchBtn,#reasonBtn{display:none !important}
+#chatPane{justify-content:flex-start}
