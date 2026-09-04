@@ -87,6 +87,7 @@
               <button class="bar-btn" id="reasonBtn" title="Think step by step"></button>
               <span id="agentChip" class="agent-chip hidden"></span>
               <div class="bar-spacer"></div>
+              <button class="bar-btn sq" id="runCodeBtn" title="Code playground — write & run HTML/CSS/JS">⚡</button>
               <button class="bar-btn sq" id="micBtn" title="Voice input"></button>
               <button class="send-btn" id="sendBtn" title="Send"></button>
             </div>
@@ -338,6 +339,25 @@
   </div>
 </div>
 
+<div id="runModal" class="modal modal-wide hidden">
+  <div class="modal-head"><h2>⚡ Code Playground</h2><button class="icon-btn" data-close title="Close"></button></div>
+  <div class="run-tabs">
+    <button class="run-tab on" data-tab="html" id="tabHtml">HTML</button>
+    <button class="run-tab" data-tab="css" id="tabCss">CSS</button>
+    <button class="run-tab" data-tab="js" id="tabJs">JS</button>
+    <div class="run-actions">
+      <button class="primary-btn sm" id="runGo">▶ Run</button>
+      <button class="btn-ghost sm" id="runExample">Example</button>
+      <button class="btn-ghost sm" id="runNewTab">↗ New tab</button>
+    </div>
+  </div>
+  <div class="run-workspace">
+    <textarea id="runHtml" class="run-editor" spellcheck="false" placeholder="<h1>Hello Aaru!</h1>"></textarea>
+    <textarea id="runCss" class="run-editor" spellcheck="false" placeholder="body { font-family: sans-serif; padding: 24px; }"></textarea>
+    <textarea id="runJs" class="run-editor" spellcheck="false" placeholder="console.log('hi')"></textarea>
+    <div class="run-preview"><iframe id="runFrame" sandbox="allow-scripts allow-modals allow-forms allow-popups"></iframe></div>
+  </div>
+</div>
 <div id="toast" class="hidden"></div>
 <script src="/app.min.js"></script>
 </body>

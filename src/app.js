@@ -171,6 +171,7 @@ const state = {
   selModel:'auto::', profile:null, agent:null,
   searchOn:false, audio:null,
   preview:null, pvDevice:'desktop',
+  projectId:null, runTab:'html',
 };
 let attachments=[];
 let pendingLogo=null;
@@ -247,7 +248,7 @@ function renderSidebar(){
         if(it.id==='websearch'){ state.webSearch=!state.webSearch; renderSidebar(); $('#webSearchBtn').classList.toggle('on',state.webSearch); toast(state.webSearch?'🌐 Web search ON':'Web search off'); return; }
         if(it.id==='knowledge'||it.id==='files'||it.id==='prompts') return toast(it.id==='knowledge'?'Knowledge Base — coming soon ⏳':(it.id==='files'?'Files manager — coming soon ⏳':'Prompt library — coming soon ⏳'));
         if(it.id==='home') return closeSidebar();
-        if(it.id==='projects') return toast('Projects dashboard — coming soon ⏳');
+        if(it.id==='projects') return openProjects();
         if(it.id==='workspace') return newChat();
         activeTool(it.id, b);
       });
@@ -256,11 +257,13 @@ function renderSidebar(){
     nav.appendChild(g);
   }
   renderRecents();
+  const mb=$('.mode-badge');
+  if(mb) mb.innerHTML='<i class="dot"></i>'+esc(curProj().name);
 }
 function closeSidebar(){ if(window.innerWidth<=1100) $('#sidebar').classList.remove('open'); }
 function renderRecents(filter=''){
   const list=$('#recentList'); list.innerHTML='';
-  const items=(state.s.chats||[]).filter(c=>c.title.toLowerCase().includes(filter.toLowerCase())).slice(0,state.searchOn?200:12);
+  const items=(state.s.chats||[]).filter(c=>(!state.projectId||c.projectId===curProj().id)).filter(c=>c.title.toLowerCase().includes(filter.toLowerCase())).slice(0,state.searchOn?200:12);
   if(!items.length){ list.appendChild(el(`<div class="note" style="padding:4px 8px">No chats yet — say something ✨</div>`)); return; }
   for(const c of items){
     const row=el(`<div class="chat-item ${c.id===state.chatId?'active':''}" data-id="${c.id}">
@@ -489,7 +492,7 @@ async function send(){
   state.abort=new AbortController();
   await runStream({
     history:state.msgs.slice(0,-1).map(m=>({role:m.role, content:m.content, parts:m.parts})),
-    chatId:state.chatId, userParts:parts, commitUser:true,
+    chatId:state.chatId, projectId:curProj().id, userParts:parts, commitUser:true,
     system:systemFor(), modelProfile:state.profile, provider:state.profile?undefined:parseSel(state.selModel)[0],
     model:state.profile?undefined:parseSel(state.selModel)[1],
     reason:state.reason, searchContext:searchCtx,
@@ -934,6 +937,87 @@ function renderPlugins(){
     box.appendChild(row);
   }
 }
+/* ---------------- projects & code playground ---------------- */
+function curProj(){
+  const ps=(state.s&&state.s.projects)||[];
+  return (state.projectId && ps.find(x=>x.id===state.projectId)) || ps[0] || {id:'default', name:'My Workspace'};
+}
+function openProjects(){
+  let m=$('#pjModal');
+  if(!m){
+    m=el('<div id="pjModal" class="modal modal-wide hidden"><div class="modal-head"><h2>📁 Projects</h2><button class="icon-btn" data-close title="Close"></button></div><div class="pj-body"></div></div>');
+    document.body.appendChild(m);
+    m.querySelector('[data-close]').innerHTML=ICONS.x;
+    m.querySelector('[data-close]').addEventListener('click',()=>m.classList.add('hidden'));
+    m.addEventListener('click',(e)=>{ if(e.target===m) m.classList.add('hidden'); });
+  }
+  const b=$('.pj-body',m);
+  const ps=(state.s&&state.s.projects)||[];
+  b.innerHTML='<div class="pj-new"><input id="pjName" class="inp" placeholder="New project name…" maxlength="50"><button class="primary-btn sm" id="pjAdd">+ Create</button></div>'+
+    '<div class="pj-list">'+ps.map(p=>{
+      const count=(state.s.chats||[]).filter(c=>c.projectId===p.id).length;
+      return '<div class="pj-row '+(p.id===curProj().id?'on':'')+'" data-id="'+p.id+'">'+
+        '<div class="pj-info"><div class="pj-name">'+esc(p.name)+'</div><div class="muted">'+count+' chat(s)</div></div>'+
+        '<button class="btn-ghost sm pj-open">Open</button>'+
+        '<button class="linkish pj-ren">Rename</button>'+
+        '<button class="linkish pj-del">Delete</button></div>';
+    }).join('')||'<p class="note" style="padding:8px">No projects yet.</p>'+
+    '</div>';
+  m.classList.remove('hidden');
+  $('#pjAdd',m).addEventListener('click',async()=>{
+    const name=$('#pjName',m).value.trim(); if(!name) return;
+    const r=await apiFetch('/api/projects',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    if(r.ok){ await fetchState(); renderSidebar(); openProjects(); toast('Project created ✓'); }
+  });
+  $('.pj-open',m).forEach(b=>b.addEventListener('click',()=>{
+    state.projectId=b.closest('.pj-row').dataset.id;
+    state.chatId=null; state.msgs=[]; renderChat(); closeSidebar();
+    m.classList.add('hidden'); renderSidebar(); refresh(); toast('📁 '+curProj().name+' open');
+  }));
+  $('.pj-ren',m).forEach(b=>b.addEventListener('click',()=>{
+    const row=b.closest('.pj-row'); const id=row.dataset.id;
+    const name=prompt('Project ka naya naam:',$('.pj-name',row).textContent); if(!name||!name.trim())return;
+    apiFetch('/api/projects/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim()})}).then(()=>refresh().then(openProjects));
+  }));
+  $('.pj-del',m).forEach(b=>b.addEventListener('click',async()=>{
+    const row=b.closest('.pj-row'); const id=row.dataset.id;
+    if(!confirm('Delete this project? Iske chats default project me move ho jayenge.'))return;
+    await apiFetch('/api/projects/'+id,{method:'DELETE'});
+    if(state.projectId===id) state.projectId=null;
+    await fetchState(); renderSidebar(); openProjects(); toast('Project deleted');
+  }));
+}
+function openRun(){
+  const m=$('#runModal'); if(!m) return;
+  m.classList.remove('hidden');
+  if(!m.dataset.init){
+    m.dataset.init='1';
+    $('.run-tab',m).forEach(t=>t.addEventListener('click',()=>{
+      $('.run-tab',m).forEach(x=>x.classList.remove('on')); t.classList.add('on');
+      const id='#run'+t.dataset.tab[0].toUpperCase()+t.dataset.tab.slice(1);
+      const ed=$(id); if(ed) ed.focus();
+    }));
+    m.querySelector('[data-close]').innerHTML=ICONS.x;
+    m.querySelector('[data-close]').addEventListener('click',()=>m.classList.add('hidden'));
+    m.addEventListener('click',(e)=>{ if(e.target===m) m.classList.add('hidden'); });
+    $('#runGo',m).addEventListener('click',()=>runCode());
+    $('#runExample',m).addEventListener('click',()=>{
+      $('#runHtml',m).value='<h1>Hello Aaru! 👋</h1>\n<p>Ye aapka live code preview hai.</p>\n<button onclick="demo()">Click me</button>\n<p id="out"></p>';
+      $('#runCss',m).value='body{font-family:system-ui;padding:32px;background:linear-gradient(135deg,#fdf6ec,#fce8d8);color:#3d3a33}h1{color:#c15f3c}button{padding:10px 18px;border:none;border-radius:10px;background:#c15f3c;color:#fff;cursor:pointer}';
+      $('#runJs',m).value='function demo(){document.getElementById("out").textContent="🎉 Code running!"}';
+      runCode();
+    });
+    $('#runNewTab',m).addEventListener('click',()=>{
+      const blob=new Blob([buildDoc()],{type:'text/html'});
+      window.open(URL.createObjectURL(blob),'_blank');
+    });
+  }
+}
+function buildDoc(){
+  const H=$('#runHtml')?$('#runHtml').value:'', C=$('#runCss')?$('#runCss').value:'', J=$('#runJs')?$('#runJs').value:'';
+  return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+C+'</style></head><body>'+H+'\n<script>try{'+(J||'')+'<\/script></body></html>';
+}
+function runCode(){ const f=$('#runFrame'); if(f) f.srcdoc=buildDoc(); toast('▶ Code running…'); }
 function modalOpen(open){
   $('#modalBack').classList.toggle('hidden', !open);
   $('#settingsModal').classList.toggle('hidden', !open);
@@ -1059,6 +1143,8 @@ function bind(){
     $('#agentName').value=''; $('#agentInstr').value='';
     renderAgents(); toast('Agent added ✓ (it appears in the list above)');
   });
+  // run code playground
+  $('#runCodeBtn').addEventListener('click',openRun);
   // preview
   $('#pvClose').addEventListener('click',()=>{ state.preview=null; $('#workspace').classList.remove('with-preview'); $('#previewPanel').classList.add('hidden'); $('#pvEmpty').style.display=''; $('#pvFrame').srcdoc=''; });
   $('#pvCopy').addEventListener('click',()=>{ if(state.preview) copyText(state.preview.code); });

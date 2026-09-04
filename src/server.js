@@ -25,6 +25,7 @@ const FILES = {
   usage: path.join(DATA_DIR, 'usage.json'),
   users: path.join(DATA_DIR, 'users.json'),
   sessions: path.join(DATA_DIR, 'sessions.json'),
+  projects: path.join(DATA_DIR, 'projects.json'),
 };
 
 /* ================= optional storage: PostgreSQL / Firebase =================
@@ -189,6 +190,7 @@ function applyState(key, value) {
     else if (key === 'users') authUsers = (value && Array.isArray(value.users)) ? value : { users: value || [] };
     else if (key === 'sessions') sessions = (value && typeof value === 'object') ? value : {};
     else if (key === 'usage') usage = (value && typeof value === 'object') ? value : {};
+    else if (key === 'projects') projects = (value && Array.isArray(value.projects)) ? value : { projects: value || [] };
   } catch (e) { console.error('[db] bad row for', key, e.message); }
 }
 function resetMissingKv(seen) {
@@ -234,7 +236,7 @@ const CATALOG = [
   { id: 'gemini', label: 'Google Gemini', baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai', defaultModel: 'gemini-3.6-flash', keyURL: 'https://aistudio.google.com/apikey', envKey: 'GEMINI_API_KEY', models: ['gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'] },
   { id: 'deepseek', label: 'DeepSeek', baseURL: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat', keyURL: 'https://platform.deepseek.com/api_keys', envKey: 'DEEPSEEK_API_KEY', models: ['deepseek-chat', 'deepseek-reasoner'] },
   { id: 'groq', label: 'Groq (fast)', baseURL: 'https://api.groq.com/openai/v1', defaultModel: 'openai/gpt-oss-120b', keyURL: 'https://console.groq.com/keys', envKey: 'GROQ_API_KEY', models: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'groq/compound-mini', 'qwen/qwen3.8-27b'] },
-  { id: 'openrouter', label: 'OpenRouter (all models)', baseURL: 'https://openrouter.ai/api/v1', defaultModel: 'openrouter/auto', keyURL: 'https://openrouter.ai/keys', envKey: 'OPENROUTER_API_KEY', models: ['openrouter/auto', 'deepseek/deepseek-chat-v3-0324:free', 'meta-llama/llama-3.3-70b-instruct:free', 'google/gemini-2.0-flash-exp:free', 'qwen/qwen-2.5-72b-instruct:free', 'mistralai/mistral-small-3.1-24b-instruct:free'] },
+  { id: 'openrouter', label: 'OpenRouter (all models)', baseURL: 'https://openrouter.ai/api/v1', defaultModel: 'openrouter/auto', keyURL: 'https://openrouter.ai/keys', envKey: 'OPENROUTER_API_KEY', models: ['openrouter/auto', 'z-ai/glm-5.2:free', 'minimax/minimax-m3:free', 'nvidia/nemotron-3-ultra-550b-a55b:free', 'poolside/laguna-xs-2.1:free', 'thinkingmachines/inkling:free', 'google/gemma-4-31b-it:free', 'anthropic/claude-sonnet-4.5', 'openai/gpt-5', 'openai/gpt-4o'] },
   { id: 'pollinations', label: 'Pollinations (FREE — no key)', baseURL: 'https://text.pollinations.ai/v1', defaultModel: 'openai', keyURL: '', envKey: '', local: true, note: 'Free unlimited AI — anonymous, no API key. Light rate limits; auto-fallback covers it.', models: ['openai', 'openai-large'] },
   { id: 'omniroute', label: 'OmniRoute (free gateway — auto routing)', baseURL: 'http://localhost:20128/v1', defaultModel: 'auto', keyURL: 'https://github.com/diegosouzapw/OmniRoute', envKey: 'OMNIROUTE_TOKEN', local: true, note: 'Self-hosted gateway: 150+ free providers, model "auto" switches automatically. Change Base URL to your public tunnel before enabling.', models: ['auto', 'auto/cheap'] },
   { id: 'anthropic', label: 'Anthropic (Claude)', baseURL: 'https://api.anthropic.com', defaultModel: 'claude-sonnet-4-5', keyURL: 'https://console.anthropic.com/settings/keys', envKey: 'ANTHROPIC_API_KEY', native: true, models: ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-haiku-4-5'] },
@@ -328,6 +330,7 @@ let chats = readJson(FILES.chats, { chats: [] });
 let usage = readJson(FILES.usage, {});
 let authUsers = readJson(FILES.users, { users: [] });
 let sessions = readJson(FILES.sessions, {}); // token -> { username, exp }
+let projects = readJson(FILES.projects, { projects: [] });
 
 /* ------------------------- auth ------------------------- */
 const SESSION_TTL = 30 * 24 * 3600 * 1000; // 30 days
@@ -756,6 +759,7 @@ function getState(session) {
     search: { provider: (config.search && config.search.provider) || 'auto', tavily: !!((config.search || {}).tavily), jina: !!((config.search || {}).jina) },
     stt: { provider: ((config.stt || {}).provider) || 'assemblyai', hasKey: !!((config.stt || {}).key) },
     aiModels: config.aiModels || [],
+    projects: projects.projects || [],
     mcp: config.mcp || {},
     plugins: config.plugins || {},
     agents: config.agents || [],
@@ -764,7 +768,7 @@ function getState(session) {
     dbConfigured: !!(DATABASE_URL || fbAdminConfig()),
     usage: usageFor(dayKey()),
     chats: chats.chats
-      .map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt, count: c.messages.length }))
+      .map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt, count: c.messages.length, projectId: c.projectId || null }))
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 200),
     providers: CATALOG.map((c) => {
@@ -804,8 +808,22 @@ function deriveTitle(parts) {
   const t = parts.map((p) => (p.type === 'text' ? p.text : '')).join(' ').trim();
   return (t || 'New chat').slice(0, 42);
 }
-function handleCreateChat(req, res) {
-  const chat = { id: makeId(), title: 'New chat', createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
+function saveProjects() { writeJson(FILES.projects, projects); persistKV('projects', projects); }
+function ensureDefaultProject() {
+  if (!projects.projects.length) {
+    projects.projects = [{ id: 'def-' + makeId(6), name: 'My Workspace', createdAt: Date.now(), updatedAt: Date.now() }];
+    saveProjects();
+  }
+  return projects.projects[0];
+}
+function currentProjectId() {
+  return (projects.projects[0] && projects.projects[0].id) || 'default';
+}
+async function handleCreateChat(req, res) {
+  let bid = null;
+  try { const b = JSON.parse((await readBody(req)) || '{}'); bid = b.projectId || null; } catch {}
+  const pid = String(bid || (projects.projects[0] && projects.projects[0].id) || 'default');
+  const chat = { id: makeId(), title: 'New chat', projectId: pid, createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
   chats.chats.push(chat);
   saveChats();
   sendJson(res, { id: chat.id });
@@ -888,7 +906,7 @@ async function handleChat(req, res) {
 
   let chat = body.chatId ? findChat(body.chatId) : null;
   if (!chat) {
-    chat = { id: makeId(), title: deriveTitle(userParts), createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
+    chat = { id: makeId(), title: deriveTitle(userParts), projectId: String(body.projectId || (projects.projects[0] && projects.projects[0].id) || 'default'), createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
     chats.chats.push(chat);
   }
   chat.updatedAt = Date.now();
@@ -1215,6 +1233,36 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/export' && m === 'GET') return handleExport(res);
     if (p === '/api/import' && m === 'POST') return await handleImport(req, res);
     if (p === '/api/reset' && m === 'POST') return sendJson(res, resetToDefaults(req.session));
+    if (p === '/api/projects' && m === 'GET') return sendJson(res, { ok: true, projects: projects.projects });
+    if (p === '/api/projects' && m === 'POST') {
+      const pb = JSON.parse((await readBody(req)) || '{}');
+      const nm = String(pb.name || '').trim().slice(0, 60) || 'New Project';
+      ensureDefaultProject();
+      const pr = { id: makeId(), name: nm, createdAt: Date.now(), updatedAt: Date.now() };
+      projects.projects.push(pr); saveProjects();
+      return sendJson(res, { ok: true, project: pr });
+    }
+    const pm = p.match(/^\/api\/projects\/([A-Za-z0-9-]+)$/);
+    if (pm && m === 'PATCH') {
+      const pb = JSON.parse((await readBody(req)) || '{}');
+      const pr = projects.projects.find((x) => x.id === pm[1]);
+      if (!pr) return sendJson(res, { error: 'Project not found' }, 404);
+      if (typeof pb.name === 'string' && pb.name.trim()) { pr.name = pb.name.trim().slice(0, 60); }
+      pr.updatedAt = Date.now(); saveProjects();
+      return sendJson(res, { ok: true, project: pr });
+    }
+    if (pm && m === 'DELETE') {
+      const pr = projects.projects.find((x) => x.id === pm[1]);
+      if (!pr) return sendJson(res, { error: 'Project not found' }, 404);
+      if (projects.projects.length > 1) {
+        const def = ensureDefaultProject();
+        let moved = 0;
+        for (const c of chats.chats) if (c.projectId === pr.id) { c.projectId = def.id; moved++; }
+        if (moved) saveChats();
+        projects.projects = projects.projects.filter((x) => x.id !== pr.id); saveProjects();
+      }
+      return sendJson(res, { ok: true });
+    }
     const cm = p.match(/^\/api\/chats\/([a-f0-9]+)$/);
     if (cm && m === 'GET') return handleGetChat(res, cm[1]);
     if (cm && m === 'DELETE') return handleDeleteChat(res, cm[1]);
