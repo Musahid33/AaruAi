@@ -66,8 +66,10 @@ async function loadFirestore() {
   if (!admin.apps.length) admin.initializeApp({ credential: admin.credential.cert(fbAdminConfig()) });
   fbDb = admin.firestore();
   const kv = await fbDb.collection('aaru_kv').get();
+  const seen = new Set();
   for (const d of kv.docs) {
     if (d.id === 'chatsIndex') continue;
+    seen.add(d.id);
     applyState(d.id, d.data().value);
   }
   const col = await fbDb.collection('aaru_chats').get();
@@ -76,8 +78,9 @@ async function loadFirestore() {
     fbChatIds.add(d.id);
     loaded.push({ id: d.id, ...d.data() });
   }
-  if (loaded.length) chats = { chats: loaded };
+  if (loaded.length) { chats = { chats: loaded }; seen.add('chats'); }
   dbMode = 'firebase';
+  resetMissingKv(seen);
   console.log('[db] connected to Firebase Firestore ( ' + kv.size + ' kv docs, ' + loaded.length + ' chats )');
 }
 
@@ -109,12 +112,14 @@ async function loadRealtimeDb() {
       fbRtdb = db;
       const kv = await db.ref('aaru_kv').once('value');
       const kvv = kv.val() || {};
-      for (const k of Object.keys(kvv)) applyState(k, kvv[k]);
+      const seen = new Set(Object.keys(kvv));
+      for (const k of seen) applyState(k, kvv[k]);
       const cs = await db.ref('aaru_chats').once('value');
       const cv = cs.val() || {};
       const loaded = Object.entries(cv).map(([id, d]) => ({ id, ...d }));
-      if (loaded.length) chats = { chats: loaded };
+      if (loaded.length) { chats = { chats: loaded }; seen.add('chats'); }
       fbChatIds = new Set(loaded.map((c) => c.id));
+      resetMissingKv(seen);
       dbMode = 'rtdb';
       console.log('[db] connected to Firebase Realtime Database ( ' + url + ' — ' + Object.keys(kvv).length + ' kv keys, ' + loaded.length + ' chats )');
       return true;
@@ -186,6 +191,11 @@ function applyState(key, value) {
     else if (key === 'usage') usage = (value && typeof value === 'object') ? value : {};
   } catch (e) { console.error('[db] bad row for', key, e.message); }
 }
+function resetMissingKv(seen) {
+  for (const k of ['config', 'users', 'sessions', 'usage', 'chats']) {
+    if (!seen.has(k)) applyState(k, null);
+  }
+}
 async function initStorage() {
   if (fbAdminConfig()) {
     let admin = null;
@@ -203,7 +213,9 @@ async function initStorage() {
       pgPool = new Pool({ connectionString: DATABASE_URL, max: 5, idleTimeoutMillis: 30000 });
       await pgPool.query('CREATE TABLE IF NOT EXISTS aaru_kv (key text PRIMARY KEY, value jsonb NOT NULL, updated_at timestamptz DEFAULT now())');
       const res = await pgPool.query('SELECT key, value FROM aaru_kv');
-      for (const row of res.rows) applyState(row.key, row.value);
+      const seen = new Set();
+      for (const row of res.rows) { seen.add(row.key); applyState(row.key, row.value); }
+      resetMissingKv(seen);
       dbMode = 'postgres';
       console.log('[db] connected to PostgreSQL (', res.rows.length, 'keys loaded )');
       return;
