@@ -368,3 +368,9 @@ body.compact .msg-content{font-size:14px}
 .logo-mark img{width:100%;height:100%;object-fit:cover;border-radius:10px}
 #pvFile{cursor:pointer}
 #pvFile:hover{color:#fff}
+
+/* ============ MINIMAL MODE — sirf chat. Dashboard clutter hata diya ============ */
+#hero,#toolsSection,#rail,.search-wrap{display:none !important}
+#workspace{grid-template-columns:minmax(0,1fr) !important;margin-top:6px}
+#workspace.with-preview{grid-template-columns:minmax(0,1fr) minmax(320px,40%) !important}
+#chatPane{max-width:920px;margin:0 auto;width:100%}
