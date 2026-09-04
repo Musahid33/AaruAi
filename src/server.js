@@ -924,7 +924,7 @@ async function handleChat(req, res) {
     const t0 = acc.text.length, r0 = acc.reasoning.length, u0 = { prompt: acc.prompt, completion: acc.completion };
     const attemptMs = prov.local ? 35000 : 90000; // keyless/free gateways: fail fast
     const sig = (typeof AbortSignal.any === 'function') ? AbortSignal.any([ctrl.signal, AbortSignal.timeout(attemptMs)]) : ctrl.signal;
-    for (let attempt = 0; attempt < (prov.local ? 2 : 1); attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
         await (prov.native
           ? streamAnthropic(prov, model, system, sendMsgs, { onDelta, onReasoning, onUsage, signal: sig })
@@ -937,7 +937,9 @@ async function handleChat(req, res) {
         acc.prompt = u0.prompt; acc.completion = u0.completion;
         lastErr = e;
         if (ctrl.signal.aborted) break;
-        if (attempt === 0 && prov.local) await new Promise((r) => setTimeout(r, 1500));
+        const retryable = !e.status || e.status >= 500; // transient 5xx / network — retry
+        if (attempt === 0 && retryable) await new Promise((r) => setTimeout(r, 1500));
+        else break;
       }
     }
     if (acc.finished) break;
