@@ -242,6 +242,7 @@ const CATALOG = [
   { id: 'pollinations', label: 'Pollinations (FREE — no key)', baseURL: 'https://text.pollinations.ai/v1', defaultModel: 'openai', keyURL: '', envKey: '', local: true, note: 'Free unlimited AI — anonymous, no API key. Light rate limits; auto-fallback covers it.', models: ['openai', 'openai-large'] },
   { id: 'omniroute', label: 'OmniRoute (free gateway — auto routing)', baseURL: 'http://localhost:20128/v1', defaultModel: 'auto', keyURL: 'https://github.com/diegosouzapw/OmniRoute', envKey: 'OMNIROUTE_TOKEN', local: true, note: 'Self-hosted gateway: 150+ free providers, model "auto" switches automatically. Change Base URL to your public tunnel before enabling.', models: ['auto', 'auto/cheap'] },
   { id: 'anthropic', label: 'Anthropic (Claude)', baseURL: 'https://api.anthropic.com', defaultModel: 'claude-sonnet-4-5', keyURL: 'https://console.anthropic.com/settings/keys', envKey: 'ANTHROPIC_API_KEY', native: true, models: ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-haiku-4-5'] },
+  { id: 'experiential', label: 'Experiential Labs (one key — all models)', baseURL: 'https://api.experientiallabs.ai/v1', defaultModel: 'claude-opus-5', keyURL: 'https://platform.experientiallabs.ai/api-keys', envKey: 'EXPLABS_API_KEY', models: ['claude-opus-5', 'qwen3.8-27b'], note: 'OpenAI-compatible gateway: every model behind one xpl_ key — hosted providers, your own keys (BYOK) and your own GPUs, at provider price (zero markup). Auto failover via per-model provider waterfalls, per-key spend caps, and one usage console. Model field accepts any slug from GET /v1/models.' },
   { id: 'ollama', label: 'Ollama (local, free)', baseURL: 'http://localhost:11434/v1', defaultModel: 'llama3.2', keyURL: 'https://ollama.com', local: true, models: ['llama3.2', 'llama3.3', 'qwen2.5', 'mistral', 'phi4'] },
   { id: 'together', label: 'Together AI', baseURL: 'https://api.together.xyz/v1', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', keyURL: 'https://api.together.xyz/settings/api-keys', envKey: 'TOGETHER_API_KEY', models: ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'meta-llama/Llama-3.1-8B-Instruct-Turbo', 'deepseek-ai/DeepSeek-V3', 'Qwen/Qwen2.5-72B-Instruct-Turbo'] },
   { id: 'huggingface', label: 'Hugging Face', baseURL: 'https://router.huggingface.co/v1', defaultModel: 'meta-llama/Llama-3.1-8B-Instruct', keyURL: 'https://huggingface.co/settings/tokens', envKey: 'HF_TOKEN', models: ['meta-llama/Llama-3.1-8B-Instruct', 'Qwen/Qwen2.5-72B-Instruct', 'mistralai/Mistral-7B-Instruct-v0.3', 'microsoft/Phi-3.5-mini-instruct'] },
@@ -316,6 +317,10 @@ function mergeConfig(loaded) {
       base.providers[c.id] = Object.assign({}, prov[c.id] || {});
     }
   }
+  // Turnkey deploy: auto-enable the Experiential Labs provider when a key is
+  // supplied (EXPLABS_API_KEY env var or stored key) unless explicitly disabled.
+  const ex = base.providers.experiential || (base.providers.experiential = {});
+  if (ex.enabled !== false && (ex.key || process.env.EXPLABS_API_KEY)) ex.enabled = true;
   return base;
 }
 function resetToDefaults(session) {
@@ -549,7 +554,7 @@ function resolveChatProvider(requestedId) {
 }
 
 /* Auto mode: try providers in priority order, fall back automatically. */
-const AUTO_PRIORITY = ['openrouter', 'pollinations', 'nvidia', 'groq', 'mistral', 'cerebras', 'cohere', 'zai', 'openai', 'deepseek', 'groq', 'gemini', 'anthropic', 'custom', 'ollama'];
+const AUTO_PRIORITY = ['openrouter', 'pollinations', 'nvidia', 'groq', 'mistral', 'cerebras', 'cohere', 'zai', 'openai', 'deepseek', 'groq', 'gemini', 'anthropic', 'custom', 'experiential', 'ollama'];
 function isLocalURL(u) { return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(String(u || '')); }
 function autoCandidates() {
   const list = [];

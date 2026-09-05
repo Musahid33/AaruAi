@@ -15,6 +15,8 @@ services:
     envVars:
       - key: FIREBASE_SERVICE_ACCOUNT
         sync: false        # secret — set it in the dashboard, never in git
+      - key: EXPLABS_API_KEY
+        sync: false        # secret — your xpl_… Experiential Labs key (Settings → API Manager also works)
       - key: COOKIE_SECURE
         value: "1"
       - key: PORT
