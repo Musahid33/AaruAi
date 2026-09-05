@@ -1,0 +1,15 @@
+{
+  "name": "Aaru AI — Personal AI Studio",
+  "short_name": "Aaru AI",
+  "description": "Your own personal AI assistant — chat, images, voice, code & more.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#04060d",
+  "theme_color": "#04060d",
+  "icons": [
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

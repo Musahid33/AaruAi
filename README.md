@@ -61,7 +61,7 @@ PostgreSQL):
    The included `render.yaml` automatically creates:
    - a **web service** (free) running the Docker image
    - a **free PostgreSQL** database with `DATABASE_URL` already wired in
-4. Wait ~4 minutes for the build → open your URL: `https://aaru-ai.onrender.com`
+4. Wait ~4 minutes for the build → open your URL: **https://aaruai.onrender.com**
 5. Open it on your **mobile**, create your **username + password** (first run), done —
    **kahin se bhi, kisi bhi internet se!**
 
