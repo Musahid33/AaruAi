@@ -1278,7 +1278,7 @@ const server = http.createServer(async (req, res) => {
     if (p.startsWith('/api/')) return sendJson(res, { error: 'Not found' }, 404);
     // static files: only the login page and assets are public
     const relStatic = p === '/' ? 'index.html' : p.slice(1);
-    const isPublicStatic = relStatic === 'login.html' || relStatic.startsWith('assets/') || relStatic === 'favicon.ico';
+    const isPublicStatic = relStatic === 'login.html' || relStatic === 'manifest.json' || relStatic.startsWith('assets/') || relStatic === 'favicon.ico';
     if (!isPublicStatic && !getSession(req)) { res.writeHead(302, { Location: '/login.html' }); return res.end(); }
     return serveStatic(req, res, p);
   } catch (e) {

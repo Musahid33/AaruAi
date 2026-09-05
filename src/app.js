@@ -260,7 +260,8 @@ function renderSidebar(){
   const mb=$('.mode-badge');
   if(mb) mb.innerHTML='<i class="dot"></i>'+esc(curProj().name);
 }
-function closeSidebar(){ if(window.innerWidth<=1100) $('#sidebar').classList.remove('open'); }
+function closeSidebar(){ $('#sidebar').classList.remove('open'); syncBackdrop(); }
+function syncBackdrop(){ const open=$('#sidebar').classList.contains('open')&&window.innerWidth<=1100; const b=$('#sideBackdrop'); if(b) b.classList.toggle('show',open); }
 function renderRecents(filter=''){
   const list=$('#recentList'); list.innerHTML='';
   const items=(state.s.chats||[]).filter(c=>(!state.projectId||c.projectId===curProj().id)).filter(c=>c.title.toLowerCase().includes(filter.toLowerCase())).slice(0,state.searchOn?200:12);
@@ -1098,7 +1099,22 @@ async function resetAll(){
 function bind(){
   bootIcons();
   $('#newChatBtn').addEventListener('click',newChat);
-  $('#sidebarToggle').addEventListener('click',()=>$('#sidebar').classList.toggle('open'));
+  $('#sidebarToggle').addEventListener('click',()=>{ $('#sidebar').classList.toggle('open'); syncBackdrop(); });
+  const sbBackdrop=$('#sideBackdrop');
+  if(sbBackdrop) sbBackdrop.addEventListener('click',closeSidebar);
+  window.addEventListener('resize',syncBackdrop);
+  /* swipe: from left edge → open drawer · swipe left on drawer → close */
+  let tsX=0,tsY=0;
+  document.addEventListener('touchstart',e=>{tsX=e.touches[0].clientX;tsY=e.touches[0].clientY},{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(window.innerWidth>1100) return;
+    const dx=e.changedTouches[0].clientX-tsX, dy=e.changedTouches[0].clientY-tsY;
+    if(Math.abs(dx)<64||Math.abs(dy)>60) return;
+    if(!$('#sidebar').classList.contains('open')&&tsX<36&&dx>0){ $('#sidebar').classList.add('open'); syncBackdrop(); }
+    else if($('#sidebar').classList.contains('open')&&dx<0){ closeSidebar(); }
+  },{passive:true});
+  /* mobile keyboard: keep the input visible when it opens */
+  $('#input').addEventListener('focus',()=>setTimeout(()=>{ try{$('#input').scrollIntoView({block:'nearest',behavior:'smooth'})}catch(e){} },300));
   $('#topSettingsBtn').addEventListener('click',()=>openSettings());
   $('#sideSettings').addEventListener('click',()=>openSettings());
   $('#bellBtn').addEventListener('click',()=>toast('🔔 No new notifications'));
