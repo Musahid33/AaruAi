@@ -1,8 +1,10 @@
 # Aaru AI — Personal AI Studio ✨
 
-Your own personal AI assistant dashboard — modern dark UI, multiple AI providers, agents,
-live app preview, login, and deployment-ready packaging. **Zero runtime dependencies**
+Your own personal AI assistant dashboard — modern dark UI, multiple AI providers, agents, PPT generation,
+ live app preview, login, and deployment-ready packaging. **Zero runtime dependencies**
 (only Node.js ≥ 18) — no database, no `npm install` needed to run.
+
+**New Feature**: 📊 PPT Generation - Create PowerPoint presentations from text prompts!
 
 ```
 aaru-ai/
@@ -178,3 +180,15 @@ project has: **Firestore** first, then **Realtime Database** — whichever exist
 Priority: Firebase (Firestore → Realtime DB, if configured) → PostgreSQL (if `DATABASE_URL` set) → JSON files.
 
 Priority: Firebase (if configured) → PostgreSQL (if `DATABASE_URL` set) → JSON files.
+
+## 📊 PPT Generation
+
+Generate PowerPoint presentations from text prompts using AI.
+
+### Usage
+1. Navigate to the PPT section in the dashboard
+2. Enter your presentation topic or outline
+3. Click "Generate PPT"
+4. Download your presentation
+
+**Note**: PPT generation requires an AI provider with presentation capabilities.
